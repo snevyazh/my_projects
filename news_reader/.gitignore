@@ -1,0 +1,6 @@
+.idea
+.venv
+*.ipynb
+*.csv
+*.txt
+.streamlit
