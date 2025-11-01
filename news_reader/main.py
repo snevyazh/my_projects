@@ -3,7 +3,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import israel_rss_reader
 from datetime import datetime
-from custom_functions import count_tokens
+# from custom_functions import count_tokens
 import llm_call
 import install_browsers
 import time
@@ -25,9 +25,10 @@ with open("./.streamlit/secrets.toml", "r") as f:
 os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
 
 # 2. Run the feed reader
-full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(feeds=ISRAELI_NEWS_FEEDS,
-                                                 time_window=1)
-print(f"Collected {articles_num} articles for the LLM digest.")
+full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(
+                                                feeds=ISRAELI_NEWS_FEEDS,
+                                                time_window=1)
+print(f"Collected {articles_num} articles for the LLM digest, Sir.")
 # print(f"Text tokens number is {count_tokens(full_text_for_llm)}")
 
 # save results of summarization
