@@ -5,6 +5,11 @@ import os
 import toml
 from datetime import datetime
 import time
+import toml as tomlib
+import warnings
+
+# suppress warnings
+warnings.filterwarnings('ignore')
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -12,6 +17,11 @@ st.set_page_config(
     page_icon="🗞️",
     layout="wide"
 )
+
+# real-time Hebrew news feeds
+with open("./config/config.toml", "r") as f:
+    config_data = tomlib.load(f)
+ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
 # --- 2. LOAD API KEY (ISOLATED) ---
 # We read the key here to pass it to the subprocess
@@ -27,8 +37,7 @@ except Exception as e:
 # --- 3. THE APP UI ---
 st.title("🗞️ Daily Hebrew News Digest Runner")
 
-st.info(
-    "This app runs your existing `main.py` script as a subprocess. The output from its `print` statements and `tqdm` bars will appear in the log below.")
+st.info(f"This app runs the following RSS feeds {ISRAELI_NEWS_FEEDS}")
 
 if st.button("Run Daily Digest", type="primary"):
     st.divider()
@@ -83,7 +92,7 @@ if st.button("Run Daily Digest", type="primary"):
 
         # Find the summary file your script created
         run_time = datetime.today().strftime('%Y-%m-%d')
-        summary_file = f"summary_text_{run_time}.txt"
+        summary_file = f"./output/summary_text_{run_time}.txt"
 
         try:
             with open(summary_file, 'r', encoding='utf-8') as f:

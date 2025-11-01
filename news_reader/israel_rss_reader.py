@@ -28,12 +28,7 @@ def get_text_for_llm(feeds, time_window=1):
             feed = feedparser.parse(feed_url)
             # print(f"Checking Feed: {feed.feed.title}, URL: {url}")
 
-            for entry in tqdm(feed.entries[:2], ##### TODO remove
-                              total=len(feed.entries),
-                              position=1,
-                              leave=False,
-                              ncols=100
-                              ):
+            for entry in feed.entries[:2]: ##### TODO remove:
 
                 # Get the publish date and make it timezone-aware
                 published_time = datetime.datetime.fromtimestamp(

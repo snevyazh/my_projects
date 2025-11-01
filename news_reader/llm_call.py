@@ -7,6 +7,10 @@ from tenacity import (
 )
 import google.generativeai as genai
 import os
+import warnings
+
+# suppress warnings
+warnings.filterwarnings('ignore')
 
 def get_model():
 

@@ -22,12 +22,7 @@ def get_text_for_llm(feeds, time_window=1):
 
             # print(f"Checking Feed: {feed.feed.title}, URL: {url}")
 
-            for entry in tqdm(feed.entries,
-                              total=len(feed.entries),
-                              position=1,
-                              leave=False,
-                              ncols=100
-                              ):
+            for entry in feed.entries:
                 # Get the publish date and make it timezone-aware
                 published_time = datetime.datetime.fromtimestamp(
                     time.mktime(entry.published_parsed), datetime.timezone.utc

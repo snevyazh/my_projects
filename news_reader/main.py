@@ -6,31 +6,29 @@ import install_browsers
 import time
 import toml as tomlib
 import os
+import warnings
+
+# suppress warnings
+warnings.filterwarnings('ignore')
 
 # 1. check and install playwright
 install_browsers.check_and_install_playwright_browsers()
 
+# real-time Hebrew news feeds
+with open("./config/config.toml", "r") as f:
+    config_data = tomlib.load(f)
+ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
-# A list of reliable, real-time Hebrew news feeds
-ISRAELI_NEWS_FEEDS = [
-    "https://www.ynet.co.il/Integration/StoryRss1854.xml",  # Ynet - Main News
-    # "https://rss.walla.co.il/feed/22",  # Walla! - Main News
-    # "https://www.maariv.co.il/rss/breakingnews",  # Maariv - Breaking News
-    # "https://www.haaretz.co.il/rss/1.600",  # Haaretz - Main News
-    # "https://www.israelhayom.co.il/rss.xml",
-    # "https://www.mako.co.il/rss/news-israel.xml"
-]
 # set the env
 with open("./.streamlit/secrets.toml", "r") as f:
     config_data = tomlib.load(f)
 os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
-print("key", os.getenv("GEMINI_API_KEY"))
 
 # 2. Run the feed reader
 full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(feeds=ISRAELI_NEWS_FEEDS,
                                                  time_window=1)
 print(f"Collected {articles_num} articles for the LLM digest.")
-print(f"Text tokens number is {count_tokens(full_text_for_llm)}")
+# print(f"Text tokens number is {count_tokens(full_text_for_llm)}")
 
 # save results of summarization
 run_time = datetime.today().strftime('%Y-%m-%d')

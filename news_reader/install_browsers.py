@@ -16,7 +16,6 @@ def check_and_install_playwright_browsers():
 
     if not flag_file.exists():
         print("First-time setup: Installing browser (Chromium)...")
-        print("This may take a minute and requires an internet connection.")
 
         try:
             # We use sys.executable to be sure we're using the Python
@@ -43,4 +42,4 @@ def check_and_install_playwright_browsers():
 
     else:
         # This will be printed on every run *after* the first one
-        print("Playwright browser is already installed. Skipping setup.")
+        print("Playwright browser is already installed. Infrastructure ready, Sir")
