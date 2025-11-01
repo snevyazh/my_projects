@@ -97,3 +97,7 @@ if st.button("Run Daily Digest", type="primary"):
         st.error(f"An error occurred while trying to run the script: {e}")
         st.code(log_output)  # Show what we got before it crashed
 
+
+
+# python - m streamlit run app.py
+

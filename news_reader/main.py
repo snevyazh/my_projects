@@ -4,6 +4,8 @@ from custom_functions import count_tokens
 import llm_call
 import install_browsers
 import time
+import toml as tomlib
+import os
 
 # 1. RUN THE SETUP CHECK FIRST
 install_browsers.check_and_install_playwright_browsers()
@@ -18,6 +20,11 @@ ISRAELI_NEWS_FEEDS = [
     # "https://www.israelhayom.co.il/rss.xml",
     # "https://www.mako.co.il/rss/news-israel.xml"
 ]
+# set the env
+with open("./.streamlit/secrets.toml", "rb") as f:
+    config_data = tomlib.load(f)
+os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
+
 
 # 2. Run the feed reader
 full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(feeds=ISRAELI_NEWS_FEEDS,
