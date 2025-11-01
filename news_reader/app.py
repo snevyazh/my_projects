@@ -1,3 +1,7 @@
+import warnings
+# suppress warnings
+warnings.filterwarnings('ignore')
+
 import streamlit as st
 import subprocess
 import sys
@@ -6,10 +10,7 @@ import toml
 from datetime import datetime
 import time
 import toml as tomlib
-import warnings
 
-# suppress warnings
-warnings.filterwarnings('ignore')
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(

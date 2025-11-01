@@ -1,3 +1,6 @@
+import warnings
+# suppress warnings
+warnings.filterwarnings('ignore')
 import israel_rss_reader
 from datetime import datetime
 from custom_functions import count_tokens
@@ -6,10 +9,7 @@ import install_browsers
 import time
 import toml as tomlib
 import os
-import warnings
 
-# suppress warnings
-warnings.filterwarnings('ignore')
 
 # 1. check and install playwright
 install_browsers.check_and_install_playwright_browsers()
