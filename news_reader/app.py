@@ -57,7 +57,7 @@ if st.button("Run Daily Digest", type="primary"):
     env["KEY"] = API_KEY
 
     log_output = ""
-    st.subheader("Running `main.py`...")
+    st.subheader("Running main process, please wait...")
 
     try:
         # Start the subprocess

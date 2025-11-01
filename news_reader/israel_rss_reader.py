@@ -17,18 +17,14 @@ def get_text_for_llm(feeds, time_window=1):
 
     all_article_summaries = []
 
-    for feed_url in tqdm(feeds,
-                    total=len(feeds),
-                    position=0,
-                    ncols=100
-                    ):
+    for feed_url in feeds:
         try:
             # Parse the feed URL
             feed_articles_summary = []
             feed = feedparser.parse(feed_url)
             # print(f"Checking Feed: {feed.feed.title}, URL: {url}")
 
-            for entry in feed.entries[:2]: ##### TODO remove:
+            for entry in feed.entries[:3]: ##### TODO remove:
 
                 # Get the publish date and make it timezone-aware
                 published_time = datetime.datetime.fromtimestamp(
