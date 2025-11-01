@@ -1,0 +1,7 @@
+.idea/
+.venv/
+*.ipynb
+*.csv
+.streamlit/
+.DS_Store
+__pycache__/
