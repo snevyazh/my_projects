@@ -1,6 +1,6 @@
-.idea
-.venv
+.idea/
+.venv/
 *.ipynb
 *.csv
 *.txt
-.streamlit
+.streamlit/
