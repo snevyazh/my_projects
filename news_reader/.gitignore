@@ -2,5 +2,5 @@
 .venv/
 *.ipynb
 *.csv
-*.txt
 .streamlit/
+.DS_Store
