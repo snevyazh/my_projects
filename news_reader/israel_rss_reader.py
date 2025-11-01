@@ -17,18 +17,28 @@ def get_text_for_llm(feeds, time_window=1):
 
     all_article_summaries = []
 
+    num_articles = 0
+
     for feed_url in tqdm(feeds,
-                    total=len(feeds),
-                    position=0,
-                    ncols=100
+                    # total=len(feeds),
+                     desc="Processing Feeds",
+                     ascii=True,
+                     mininterval=1.0,
+                     leave=False
                     ):
         try:
             # Parse the feed URL
             feed_articles_summary = []
             feed = feedparser.parse(feed_url)
             # print(f"Checking Feed: {feed.feed.title}, URL: {url}")
+            feed_title = feed.feed.get('title',  feed_url)
 
-            for entry in feed.entries[:2]: ##### TODO remove:
+            for entry in tqdm(feed.entries[:2], ##### TODO remove
+                              desc=f"Scanning {feed_title[:30]}...",
+                              ascii=True,
+                              mininterval=1.0,
+                              leave=False
+                              ):
 
                 # Get the publish date and make it timezone-aware
                 published_time = datetime.datetime.fromtimestamp(
@@ -50,6 +60,8 @@ def get_text_for_llm(feeds, time_window=1):
                                                  f"Full text: {full_text}\n\n{'-' * 50}")
             # add feed text to overall list
             all_article_summaries.append('\n\n'.join(feed_articles_summary))
+            num_articles += len(feed_articles_summary)
+
 
         except Exception as e:
             print(f"Could not parse feed {feed_url}. Error: {e}")
@@ -57,7 +69,7 @@ def get_text_for_llm(feeds, time_window=1):
 
     # This is the final text
     full_text_for_llm = "\n\nXXX".join(all_article_summaries)
-    return full_text_for_llm, len(all_article_summaries)
+    return full_text_for_llm, num_articles
 
 
 
