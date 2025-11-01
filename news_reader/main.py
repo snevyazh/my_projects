@@ -7,7 +7,7 @@ import time
 import toml as tomlib
 import os
 
-# 1. RUN THE SETUP CHECK FIRST
+# 1. check and install playwright
 install_browsers.check_and_install_playwright_browsers()
 
 
@@ -21,10 +21,10 @@ ISRAELI_NEWS_FEEDS = [
     # "https://www.mako.co.il/rss/news-israel.xml"
 ]
 # set the env
-with open("./.streamlit/secrets.toml", "rb") as f:
+with open("./.streamlit/secrets.toml", "r") as f:
     config_data = tomlib.load(f)
 os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
-
+print("key", os.getenv("GEMINI_API_KEY"))
 
 # 2. Run the feed reader
 full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(feeds=ISRAELI_NEWS_FEEDS,
@@ -32,10 +32,12 @@ full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(feeds=ISRAE
 print(f"Collected {articles_num} articles for the LLM digest.")
 print(f"Text tokens number is {count_tokens(full_text_for_llm)}")
 
+# save results of summarization
 run_time = datetime.today().strftime('%Y-%m-%d')
 with open(f"./output/full_text_{run_time}.txt", 'w') as f:
     f.write(full_text_for_llm)
 
+# run LLM
 text_by_stream = full_text_for_llm.split("XXX")
 
 with open("./prompts/prompt_first_summary.md", 'r') as f:
@@ -56,6 +58,7 @@ summaries_text = "\n\n".join(feeds_summaries)
 with open(f"./output/summary_texts_feeds_{run_time}.txt", 'w') as f:
     f.write(summaries_text)
 
+# summarize the final text
 with open("./prompts/prompt_second_summary.md", 'r') as f:
     prompt_template_2 = f.read()
 prompt_final = prompt_template_1.format(summaries_text)
