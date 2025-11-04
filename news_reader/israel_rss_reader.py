@@ -33,7 +33,7 @@ def get_text_for_llm(feeds, time_window=1):
             # print(f"Checking Feed: {feed.feed.title}, URL: {url}")
             feed_title = feed.feed.get('title',  feed_url)
 
-            for entry in tqdm(feed.entries[:2], ##### TODO remove
+            for entry in tqdm(feed.entries, # limit for debug
                               desc=f"Scanning {feed_title[:30]}...",
                               ascii=True,
                               mininterval=1.0,
