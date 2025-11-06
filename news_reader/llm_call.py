@@ -9,6 +9,7 @@ from tenacity import (
     before_sleep
 )
 import google.generativeai as genai
+from google.generativeai import types
 import os
 
 
@@ -35,7 +36,12 @@ def print_retry_attempt(retry_state):
 def call_llm(model, prompt):
 
     try:
-        response = model.generate_content(prompt)
+        generation_config = types.GenerationConfig(
+            temperature=0.1
+        )
+        response = model.generate_content(prompt,
+                                          generation_config=generation_config
+                                          )
         return response.text
 
     except Exception as e:
