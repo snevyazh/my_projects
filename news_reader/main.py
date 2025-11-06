@@ -1,7 +1,7 @@
 import warnings
 # suppress warnings
 warnings.filterwarnings('ignore')
-import israel_rss_reader
+import israel_rss_reader as israel_rss_reader # or backup for old version
 from datetime import datetime
 # from custom_functions import count_tokens
 import llm_call
@@ -9,6 +9,7 @@ import install_browsers
 import time
 import toml as tomlib
 import os
+import sys
 
 
 # 1. check and install playwright
@@ -24,10 +25,22 @@ with open("./.streamlit/secrets.toml", "r") as f:
     config_data = tomlib.load(f)
 os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
 
+# Set default time window
+time_window = 1
+if len(sys.argv) > 1:
+    try:
+        # Read time_window from the first argument
+        time_window = int(sys.argv[1])
+    except ValueError:
+        print(f"Invalid time window argument '{sys.argv[1]}'. Using default: {time_window} day(s).")
+else:
+    print(f"No time window specified. Using default: {time_window} day(s).")
+#
+
 # 2. Run the feed reader
 full_text_for_llm, articles_num = israel_rss_reader.get_text_for_llm(
                                                 feeds=ISRAELI_NEWS_FEEDS,
-                                                time_window=1)
+                                                time_window=time_window)
 print(f"Collected {articles_num} articles for the LLM digest, Sir.")
 # print(f"Text tokens number is {count_tokens(full_text_for_llm)}")
 

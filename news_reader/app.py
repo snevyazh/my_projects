@@ -18,6 +18,26 @@ st.set_page_config(
     page_icon="🗞️",
     layout="wide"
 )
+st.markdown("""
+<style>
+/* Target all text elements for a clearer, larger font */
+html, body, [class*="st-"] {
+   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+   font-size: 1.1rem;
+}
+
+/* Target the code block (for your logs) to make it clearer */
+pre, code {
+    font-family: 'Roboto Mono', 'Consolas', 'Menlo', monospace;
+    font-size: 1.05rem !important; /* Use !important to override default */
+}
+
+/* Make the title a bit bigger to match */
+h1 {
+    font-size: 2.5rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # real-time Hebrew news feeds
 with open("./config/config.toml", "r") as f:
@@ -40,6 +60,16 @@ st.title("🗞️ Daily Hebrew News Digest Runner")
 
 st.info(f"This app runs the following RSS feeds {ISRAELI_NEWS_FEEDS}")
 
+st.subheader("Settings")
+time_window_days = st.number_input(
+    "Set Time Window (in days)",
+    min_value=1,
+    max_value=30,
+    value=1,  # Default to 1 day
+    step=1,
+    help="How many days back to look for articles (e.g., 1 = last 24 hours)."
+)
+
 if st.button("Run Daily Digest", type="primary"):
     st.divider()
 
@@ -57,13 +87,20 @@ if st.button("Run Daily Digest", type="primary"):
     env["KEY"] = API_KEY
 
     log_output = ""
-    st.subheader("Running main process, please wait...")
+    # st.subheader("Running main process, please wait...")
 
     try:
         # Start the subprocess
         # -u = unbuffered output (crucial for live updates)
+        process_args = [
+            python_executable,
+            "-u",
+            "main.py",
+            str(time_window_days)  # Pass the number as a string
+        ]
+
         process = subprocess.Popen(
-            [python_executable, "-u", "main.py"],
+            process_args,  # Use the new arguments
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
