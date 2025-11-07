@@ -117,7 +117,7 @@ if answer_final:
     body {
         direction: rtl;
         font-family: Arial, sans-serif;
-        font-size: 18px; /* Increased font size for readability */
+        font-size: 20px; /* Increased font size for readability */
         line-height: 1.8;
         padding: 25px;
         background-color: #f8f9fa;
