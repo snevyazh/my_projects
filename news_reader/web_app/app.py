@@ -52,8 +52,9 @@ with open(os.path.join(PROJECT_ROOT, "config", "config.toml"), "r") as f:
 ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
 # --- 2. LOAD API KEY (ISOLATED) ---
+secrets_path = os.path.join(PROJECT_ROOT, ".streamlit", "secrets.toml")
 try:
-    secrets_path = os.path.join(PROJECT_ROOT, ".streamlit", "secrets.toml")
+
     secrets = toml.load(secrets_path)
     API_KEY = secrets["secrets"]["OPEN_AI_KEY"]
 except Exception as e:

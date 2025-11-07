@@ -1,4 +1,5 @@
 import feedparser
+import toml as tomlib
 import datetime
 import time
 import sys
@@ -13,7 +14,9 @@ import ssl
 # You can safely change this number.
 # 10 is a good starting point.
 # If you have a strong machine, you can try 15 or 20.
-MAX_WORKERS = 15
+with open("./config/config.toml", "r") as f:
+    config_data = tomlib.load(f)
+MAX_WORKERS = config_data["process"]["workers"]
 
 # WARNING: This bypasses SSL certificate verification.
 # Restored from your working backup.

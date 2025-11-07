@@ -28,23 +28,20 @@ def print_retry_attempt(retry_state):
 
 
 @retry(
-    wait=wait_fixed(30),  # Wait 30 seconds between retries
+    wait=wait_fixed(61),  # Wait 30 seconds between retries
     stop=stop_after_attempt(5),  # Stop after 5 attempts
     retry=retry_if_exception_type(Exception),  # Retry on any exception
     before_sleep=print_retry_attempt,  # Print a message before sleeping
 )
 def call_llm(model, prompt):
 
-    try:
-        generation_config = types.GenerationConfig(
-            temperature=0.1
-        )
-        response = model.generate_content(prompt,
-                                          generation_config=generation_config
-                                          )
-        return response.text
+    generation_config = types.GenerationConfig(
+        temperature=0.1
+    )
+    response = model.generate_content(prompt,
+                                      generation_config=generation_config
+                                      )
+    return response.text
 
-    except Exception as e:
-        print(f"An error occurred while calling the Gemini API: {e}")
-        return None
+
 
