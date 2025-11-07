@@ -3,6 +3,9 @@ This module provides functionality to scrape the full text of a news article fro
 It uses playwright to control a headless browser and trafilatura to extract the main content from the HTML.
 Stealth is used to avoid bot detection.
 """
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
 import trafilatura

@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 # suppress warnings
 warnings.filterwarnings('ignore')
@@ -9,24 +12,23 @@ from llm_call_functions import llm_call_open_ai as llm_call
 from web_scrapper import install_browsers
 import time
 import toml as tomlib
-import os
-import sys
 
 
 # 1. check and install playwright
 install_browsers.check_and_install_playwright_browsers()
 
 # real-time Hebrew news feeds
-with open("../config/config.toml", "r") as f:
+with open("./config/config.toml", "r") as f:
     config_data = tomlib.load(f)
 ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
+os.environ["OPENAI_MODEL"] = config_data["model"]["open_ai_model"]
 
 # set the env
-with open("../.streamlit/secrets.toml", "r") as f:
-    config_data = tomlib.load(f)
-os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
-os.environ["OPENAI_API_KEY"] = config_data["secrets"]["OPEN_AI_KEY"]
-os.environ["OPENAI_MODEL"] = config_data["model"]["open_ai_model"]
+with open("./.streamlit/secrets.toml", "r") as f:
+    secret_data = tomlib.load(f)
+os.environ["GEMINI_API_KEY"] = secret_data["secrets"]["GEMINI_API_KEY"]
+os.environ["OPENAI_API_KEY"] = secret_data["secrets"]["OPEN_AI_KEY"]
+
 
 # Set default time window
 time_window = 1
@@ -81,7 +83,3 @@ answer_final = llm_call.call_llm(model, prompt_final)
 
 with open(f"./output/summary_text_{run_time}.txt", 'w') as f:
     f.write(answer_final)
-
-
-
-

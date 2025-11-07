@@ -1,6 +1,9 @@
 import feedparser
 import datetime
 import time
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from web_scrapper import scrapper_v2 as scrapper
 from tqdm import tqdm
 import concurrent.futures

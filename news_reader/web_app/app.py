@@ -39,20 +39,27 @@ h1 {
 </style>
 """, unsafe_allow_html=True)
 
+# --- Project Root Setup ---
+# Get the absolute path to the directory containing this script (web_app)
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# Get the absolute path to the project root (one level up)
+PROJECT_ROOT = os.path.dirname(APP_DIR)
+
+
 # real-time Hebrew news feeds
-with open("../config/config.toml", "r") as f:
+with open(os.path.join(PROJECT_ROOT, "config", "config.toml"), "r") as f:
     config_data = tomlib.load(f)
 ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
 # --- 2. LOAD API KEY (ISOLATED) ---
-# We read the key here to pass it to the subprocess
 try:
-    secrets = toml.load("../.streamlit/secrets.toml")
-    API_KEY = secrets["secrets"]["GEMINI_API_KEY"]
+    secrets_path = os.path.join(PROJECT_ROOT, ".streamlit", "secrets.toml")
+    secrets = toml.load(secrets_path)
+    API_KEY = secrets["secrets"]["OPEN_AI_KEY"]
 except Exception as e:
-    st.error(f"Error loading API key from .streamlit/secrets.toml: {e}")
+    st.error(f"Error loading API key from {secrets_path}: {e}")
     st.code(
-        "Make sure your .streamlit/secrets.toml file exists and has:\n\n[secrets]\nGEMINI_API_KEY=\"your_key_here\"")
+        "Make sure your .streamlit/secrets.toml file exists in the project root and has:\n\n[secrets]\nOPEN_AI_KEY=\"your_key_here\"")
     st.stop()
 
 # --- 3. THE APP UI ---
@@ -90,22 +97,22 @@ if st.button("Run Daily Digest", type="primary"):
     # st.subheader("Running main process, please wait...")
 
     try:
-        # Start the subprocess
-        # -u = unbuffered output (crucial for live updates)
+        # Start the subprocess from the project root
         process_args = [
             python_executable,
             "-u",
-            "main.py",
-            str(time_window_days)  # Pass the number as a string
+            "main_process/main.py",  # Path relative to project root
+            str(time_window_days)
         ]
 
         process = subprocess.Popen(
-            process_args,  # Use the new arguments
+            process_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             encoding='utf-8',
-            env=env
+            env=env,
+            cwd=PROJECT_ROOT  # Set the working directory to the project root
         )
 
         # Read the output line by line, in real-time
@@ -130,7 +137,7 @@ if st.button("Run Daily Digest", type="primary"):
 
         # Find the summary file your script created
         run_time = datetime.today().strftime('%Y-%m-%d')
-        summary_file = f"./output/summary_text_{run_time}.txt"
+        summary_file = os.path.join(PROJECT_ROOT, "output", f"summary_text_{run_time}.txt")
 
         try:
             with open(summary_file, 'r', encoding='utf-8') as f:
@@ -146,5 +153,4 @@ if st.button("Run Daily Digest", type="primary"):
 
 
 
-# python - m streamlit run app.py
-
+# python - m streamlit run web_app/app.py
