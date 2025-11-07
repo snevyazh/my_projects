@@ -40,14 +40,14 @@ h1 {
 """, unsafe_allow_html=True)
 
 # real-time Hebrew news feeds
-with open("./config/config.toml", "r") as f:
+with open("../config/config.toml", "r") as f:
     config_data = tomlib.load(f)
 ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
 # --- 2. LOAD API KEY (ISOLATED) ---
 # We read the key here to pass it to the subprocess
 try:
-    secrets = toml.load(".streamlit/secrets.toml")
+    secrets = toml.load("../.streamlit/secrets.toml")
     API_KEY = secrets["secrets"]["GEMINI_API_KEY"]
 except Exception as e:
     st.error(f"Error loading API key from .streamlit/secrets.toml: {e}")

@@ -13,7 +13,7 @@ import toml as tomlib
 
 
 def get_model():
-    with open("./.streamlit/secrets.toml", "r") as f:
+    with open("../.streamlit/secrets.toml", "r") as f:
         config_data = tomlib.load(f)
     api_key = config_data["secrets"]["OPEN_AI_KEY"]
     print(api_key)
