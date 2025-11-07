@@ -7,3 +7,6 @@ ISRAELI_NEWS_FEEDS = [
      "https://www.israelhayom.co.il/rss.xml",
     # "https://www.mako.co.il/rss/news-israel.xml"
 ]
+
+[model]
+open_ai_model = 'gpt-4.1-mini'

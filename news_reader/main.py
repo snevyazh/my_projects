@@ -4,7 +4,8 @@ warnings.filterwarnings('ignore')
 import israel_rss_reader as israel_rss_reader # or backup for old version
 from datetime import datetime
 # from custom_functions import count_tokens
-import llm_call
+# import llm_call
+import llm_call_open_ai as llm_call
 import install_browsers
 import time
 import toml as tomlib
@@ -24,6 +25,8 @@ ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 with open("./.streamlit/secrets.toml", "r") as f:
     config_data = tomlib.load(f)
 os.environ["GEMINI_API_KEY"] = config_data["secrets"]["GEMINI_API_KEY"]
+os.environ["OPENAI_API_KEY"] = config_data["secrets"]["OPEN_AI_KEY"]
+os.environ["OPENAI_MODEL"] = config_data["model"]["open_ai_model"]
 
 # Set default time window
 time_window = 1
@@ -62,7 +65,7 @@ model = llm_call.get_model()
 for text in text_by_stream:
     prompt_feed = prompt_template_1.format(text)
     answer_for_feed = llm_call.call_llm(model, prompt_feed)
-    time.sleep(60)
+    time.sleep(30)
     feeds_summaries.append(answer_for_feed)
 
 summaries_text = "\n\n".join(feeds_summaries)

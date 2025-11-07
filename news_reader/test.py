@@ -1,7 +1,7 @@
 import israel_rss_reader
 import scrapper_v2 as scrapper
 from custom_functions import count_tokens
-import llm_call
+import llm_call_open_ai as llm_call
 #
 
 
