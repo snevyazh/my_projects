@@ -100,7 +100,7 @@ with open(f"./output/summary_texts_feeds_{run_time}.txt", 'w') as f:
 with open("./prompts/prompt_second_summary.md", 'r') as f:
     prompt_template_2 = f.read()
 
-time.sleep(60)
+time.sleep(65)
 prompt_final = prompt_template_2.format(summaries_text)
 print("Calling LLM for final summary...")
 answer_final = llm_call.call_llm(model, prompt_final)
