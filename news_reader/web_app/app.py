@@ -102,7 +102,7 @@ if st.button("Run Daily Digest", type="primary"):
         process_args = [
             python_executable,
             "-u",
-            "main_process/main.py",  # Path relative to project root
+            "main_process/process_all.py",  # Path relative to project root
             str(time_window_days)
         ]
 
