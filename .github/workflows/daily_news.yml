@@ -2,12 +2,13 @@ name: Daily News Bot
 
 on:
   schedule:
-    - cron: '0 6,18 * * *'
+    - cron: '0 8,18 * * *'
   workflow_dispatch:
 
 jobs:
   run_bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
