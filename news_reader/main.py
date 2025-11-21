@@ -1,8 +1,11 @@
 import argparse
 from main_process import process_all
+import time
 
 def main(parameters=None):
+    start_time = time.time()
     process_all.run_process(parameters)
+    print(f"\n\nRun time: {time.time() - start_time:.2f} seconds")
 
 
 if __name__ == '__main__':
