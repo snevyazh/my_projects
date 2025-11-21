@@ -26,6 +26,7 @@ def run_process(parameters):
     run_time = datetime.today().strftime('%Y-%m-%d')
 
     if parameters.scrap == 'yes':
+        os.makedirs("./output", exist_ok=True)
         # run scrapping
         # real-time Hebrew news feeds
         with open("./config/config.toml", "r") as f:
