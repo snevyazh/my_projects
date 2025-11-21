@@ -51,4 +51,4 @@ jobs:
         # We explicitly 'cd' here too
         run: |
           cd news_reader
-          python process_all.py
+          python main.py -s yes
