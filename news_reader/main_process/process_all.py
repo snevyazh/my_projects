@@ -15,6 +15,7 @@ from custom_functions.custom_functions import count_tokens
 from llm_call_functions import llm_call as llm_call
 from web_scrapper import install_browsers
 import toml as tomlib
+from email_sender import email_sender
 
 def run_process(parameters):
     # 1. check and install playwright
@@ -144,8 +145,12 @@ def run_process(parameters):
         # 2. Define CSS for styling
         html_output = output_style.get_the_html(run_time, html_body_content)
         # Save to file with .html extension
-        with open(f"./output/summary_text_{run_time}.html", 'w', encoding='utf-8') as f:
+        final_html_filename = f"./output/summary_text_{run_time}.html"
+        with open(final_html_filename, 'w', encoding='utf-8') as f:
             f.write(html_output)
+
+        print("Sending email...")
+        email_sender.send_summary_email(final_html_filename)
     else:
         print("Final summary FAILED after all retries.")
 
