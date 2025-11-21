@@ -138,7 +138,7 @@ def run_process(parameters):
     # --- NEW: HTML Conversion, CSS Styling, and Saving ---
     if answer_final:
         print("Final summary generated.")
-
+        answer_final = answer_final.replace("```markdown", "").replace("```", "").strip()
         # 1. Convert Markdown to HTML body content
         html_body_content = markdown.markdown(answer_final)
 
