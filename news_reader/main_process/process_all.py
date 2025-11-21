@@ -2,6 +2,7 @@ import os
 import sys
 import time
 from main_process import find_file, output_style
+
 # We are in the root folder, so paths are simpler
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import warnings
@@ -17,6 +18,7 @@ from web_scrapper import install_browsers
 import toml as tomlib
 from email_sender import email_sender
 
+
 def run_process(parameters):
     # 1. check and install playwright
     install_browsers.check_and_install_playwright_browsers()
@@ -26,7 +28,6 @@ def run_process(parameters):
     run_time = datetime.today().strftime('%Y-%m-%d')
 
     if parameters.scrap == 'yes':
-        os.makedirs("./output", exist_ok=True)
         # run scrapping
         # real-time Hebrew news feeds
         with open("./config/config.toml", "r") as f:
@@ -51,6 +52,9 @@ def run_process(parameters):
             time_window=time_window)
         print(f"Collected {articles_num} articles for the LLM digest, Sir.")
 
+        # --- FIX: Create directory if missing (for GitHub Actions) ---
+        os.makedirs("./output", exist_ok=True)
+
         # save results of summarization
         output_file_path = f"./output/full_text_{run_time}.txt"
         try:
@@ -63,7 +67,7 @@ def run_process(parameters):
         if articles_num == 0:
             print("No articles found. Exiting.")
             sys.exit()
-    elif  parameters.scrap == 'no' and parameters.date:
+    elif parameters.scrap == 'no' and parameters.date:
         run_time_manual = parameters.date
         # run_time = datetime.today().strftime('%Y-%m-%d')
         search_directory = "./output/"
@@ -85,7 +89,7 @@ def run_process(parameters):
         print("dead end")
     # set the env
     with open("./.streamlit/secrets.toml", "r") as f:
-            secret_data = tomlib.load(f)
+        secret_data = tomlib.load(f)
     os.environ["GEMINI_API_KEY"] = secret_data["secrets"]["GEMINI_API_KEY"]
     os.environ["OPENAI_API_KEY"] = secret_data["secrets"]["OPEN_AI_KEY"]
     # run LLM
@@ -108,12 +112,15 @@ def run_process(parameters):
         print(f"  - Calling LLM for feed {i + 1}/{len(text_by_stream)} (approx. {chunk_token_count:.0f} tokens)...")
         prompt_feed = prompt_template_1.format(text)
 
-        answer_for_feed = llm_call.call_llm(model, prompt_feed)
-
-        if answer_for_feed:
-            feeds_summaries.append(answer_for_feed)
-        else:
-            print(f"    - Feed {i + 1} FAILED to summarize after retries.")
+        # --- FIX: Graceful Failure (Try/Except Block) ---
+        try:
+            answer_for_feed = llm_call.call_llm(model, prompt_feed)
+            if answer_for_feed:
+                feeds_summaries.append(answer_for_feed)
+        except Exception as e:
+            # If a feed fails (e.g. 429 error), we log it but CONTINUING.
+            print(f"    [CRITICAL] Feed {i + 1} FAILED hard and was skipped: {e}")
+        # -----------------------------------------------
 
         # Add a delay to avoid hitting rate limits, but not on the last item
         if i < len(text_by_stream) - 1:
@@ -121,6 +128,12 @@ def run_process(parameters):
             time.sleep(65)
 
     print("All feeds processed.")
+
+    # If everything failed, exit
+    if not feeds_summaries:
+        print("All feeds failed to summarize. Exiting.")
+        return
+
     summaries_text = "\n\n".join(feeds_summaries)
 
     # Save the intermediate summaries
@@ -134,7 +147,13 @@ def run_process(parameters):
     time.sleep(120)
     prompt_final = prompt_template_2.format(summaries_text)
     print("Calling LLM for final summary...")
-    answer_final = llm_call.call_llm(model, prompt_final)
+
+    # Protect final summary call too
+    try:
+        answer_final = llm_call.call_llm(model, prompt_final)
+    except Exception as e:
+        print(f"Final summary failed: {e}")
+        answer_final = None
 
     # --- NEW: HTML Conversion, CSS Styling, and Saving ---
     if answer_final:
