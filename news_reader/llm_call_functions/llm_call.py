@@ -32,7 +32,7 @@ def print_retry_attempt(retry_state):
 
 @retry(
     wait=wait_fixed(WAIT_SECONDS),  # Wait 70 seconds between retries
-    stop=stop_after_attempt(5),  # Stop after 5 attempts
+    stop=stop_after_attempt(10),  # Stop after 5 attempts
     retry=retry_if_exception_type(Exception),  # Retry on any exception
     before_sleep=print_retry_attempt,  # Print a message before sleeping
 )
