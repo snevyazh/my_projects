@@ -1,10 +1,10 @@
 [feeds]
 ISRAELI_NEWS_FEEDS = [
 "https://www.ynet.co.il/Integration/StoryRss1854.xml",  # Ynet - Main News
-# "https://rss.walla.co.il/feed/22",  # Walla! - Main News
+"https://rss.walla.co.il/feed/22",  # Walla! - Main News
 # "https://www.maariv.co.il/rss/breakingnews",  # Maariv - Breaking News
 # "https://www.haaretz.co.il/rss/1.600",  # Haaretz - Main News
-# "https://www.israelhayom.co.il/rss.xml",
+"https://www.israelhayom.co.il/rss.xml",
 # "https://www.mako.co.il/rss/news-israel.xml"
 ]
 
