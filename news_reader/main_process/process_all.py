@@ -131,7 +131,7 @@ def run_process(parameters):
     with open("./prompts/prompt_second_summary.md", 'r') as f:
         prompt_template_2 = f.read()
 
-    time.sleep(80)
+    time.sleep(120)
     prompt_final = prompt_template_2.format(summaries_text)
     print("Calling LLM for final summary...")
     answer_final = llm_call.call_llm(model, prompt_final)
