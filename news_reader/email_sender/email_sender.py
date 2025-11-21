@@ -5,6 +5,8 @@ import toml as tomlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from custom_functions import path_utils
+import certifi
+
 
 def send_summary_email(html_file_path):
     # 1. Load secrets from the local TOML file
@@ -40,7 +42,7 @@ def send_summary_email(html_file_path):
     msg.attach(part)
 
     # 5. Send via Gmail SMTP (SSL)
-    context = ssl.create_default_context()
+    context = ssl.create_default_context(cafile=certifi.where())
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(sender_email, app_password)
