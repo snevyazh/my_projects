@@ -2,14 +2,19 @@ name: Daily News Bot
 
 on:
   schedule:
-    # Runs at 06:00 and 18:00 UTC daily (Adjust for your timezone)
-    # Israel is UTC+2 or UTC+3, so 06:00 UTC is ~08:00/09:00 IL time.
+    # Runs at 06:00 and 18:00 UTC daily
     - cron: '0 6,18 * * *'
-  workflow_dispatch: # Allows you to manually click "Run Now" for testing
+  workflow_dispatch: # Allows manual run
 
 jobs:
   run_bot:
     runs-on: ubuntu-latest
+
+    # --- THE FIX STARTS HERE ---
+    defaults:
+      run:
+        working-directory: ./news_reader
+    # --- THE FIX ENDS HERE ---
 
     steps:
       - name: Checkout code
@@ -21,13 +26,14 @@ jobs:
           python-version: '3.10'
 
       - name: Install Dependencies
+        # Now this runs inside /news_reader, so it finds requirements.txt
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           playwright install chromium
 
       - name: Create Secrets File
-        # This rebuilds your local secrets.toml file inside the GitHub runner
+        # This creates the secrets file inside /news_reader/.streamlit/
         run: |
           mkdir -p .streamlit
           echo '[secrets]' > .streamlit/secrets.toml
@@ -37,5 +43,5 @@ jobs:
           echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
 
       - name: Run News Scraper
-        # IMPORTANT: Replace 'run.py' with 'main.py' if that is what you run locally!
-        run: python run.py
+        # This runs inside /news_reader, so imports like 'import config' work correctly
+        run: python process_all.py
