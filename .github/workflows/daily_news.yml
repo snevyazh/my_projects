@@ -1,0 +1,41 @@
+name: Daily News Bot
+
+on:
+  schedule:
+    # Runs at 06:00 and 18:00 UTC daily (Adjust for your timezone)
+    # Israel is UTC+2 or UTC+3, so 06:00 UTC is ~08:00/09:00 IL time.
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: # Allows you to manually click "Run Now" for testing
+
+jobs:
+  run_bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Create Secrets File
+        # This rebuilds your local secrets.toml file inside the GitHub runner
+        run: |
+          mkdir -p .streamlit
+          echo '[secrets]' > .streamlit/secrets.toml
+          echo 'GEMINI_API_KEY = "${{ secrets.GEMINI_API_KEY }}"' >> .streamlit/secrets.toml
+          echo 'OPEN_AI_KEY = "${{ secrets.OPENAI_API_KEY }}"' >> .streamlit/secrets.toml
+          echo 'GMAIL_USER = "${{ secrets.GMAIL_USER }}"' >> .streamlit/secrets.toml
+          echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
+
+      - name: Run News Scraper
+        # IMPORTANT: Replace 'run.py' with 'main.py' if that is what you run locally!
+        run: python run.py
