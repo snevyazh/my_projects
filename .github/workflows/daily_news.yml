@@ -2,19 +2,12 @@ name: Daily News Bot
 
 on:
   schedule:
-    # Runs at 06:00 and 18:00 UTC daily
     - cron: '0 6,18 * * *'
-  workflow_dispatch: # Allows manual run
+  workflow_dispatch:
 
 jobs:
   run_bot:
     runs-on: ubuntu-latest
-
-    # --- THE FIX STARTS HERE ---
-    defaults:
-      run:
-        working-directory: ./news_reader
-    # --- THE FIX ENDS HERE ---
 
     steps:
       - name: Checkout code
@@ -25,16 +18,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
-        # Now this runs inside /news_reader, so it finds requirements.txt
+      # --- DEBUG STEP: THIS WILL SHOW US THE TRUTH ---
+      - name: Debug - List all files
         run: |
+          echo "Current folder:"
+          pwd
+          echo "Files in root:"
+          ls -la
+          echo "Searching for requirements.txt..."
+          find . -name "requirements.txt"
+
+      - name: Install Dependencies
+        # We explicitly 'cd' into the folder before running pip
+        run: |
+          cd news_reader
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           playwright install chromium
 
       - name: Create Secrets File
-        # This creates the secrets file inside /news_reader/.streamlit/
+        # We explicitly 'cd' here too
         run: |
+          cd news_reader
           mkdir -p .streamlit
           echo '[secrets]' > .streamlit/secrets.toml
           echo 'GEMINI_API_KEY = "${{ secrets.GEMINI_API_KEY }}"' >> .streamlit/secrets.toml
@@ -43,5 +48,7 @@ jobs:
           echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
 
       - name: Run News Scraper
-        # This runs inside /news_reader, so imports like 'import config' work correctly
-        run: python process_all.py
+        # We explicitly 'cd' here too
+        run: |
+          cd news_reader
+          python process_all.py
