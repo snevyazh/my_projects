@@ -11,6 +11,7 @@ Your task is to read the supplied news summaries from different agencies and **s
     * Start with the main event (the main idea).
     * Follow with the necessary background and key details to ensure a full understanding.
     * Write clearly, assuming the reader has no prior knowledge of the topic.
+    * Add the URL link for the article that you have been provided in the summary.
 * **Objectivity:** Do not add any of your own opinions, comments, or thoughts. Stick strictly to the facts provided in the summaries.
 * **Language:** The entire response must be written in **Hebrew**.
 * **Format:** The output must be a **single, clean Markdown document**.
