@@ -105,8 +105,7 @@ def get_text_for_llm(feeds, time_window=1):
         for entry in tqdm(entries_to_scrape, desc="Scraping Sequentially"):
             feed_url, text = _scrape_single_article(entry, start_date)
             if feed_url and text:
-                text_with_url = f"{text}\nURL: {feed_url}\n\n"
-                feed_text_map[feed_url].append(text_with_url)
+                feed_text_map[feed_url].append(text)
                 total_scraped += 1
     else:
         print(f"Running in PARALLEL mode ({MAX_WORKERS} workers)...")
