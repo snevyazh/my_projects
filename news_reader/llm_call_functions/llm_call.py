@@ -13,7 +13,7 @@ from google.generativeai import types
 import os
 
 # Define the wait period in seconds
-WAIT_SECONDS = 70
+WAIT_SECONDS = 90
 
 def get_model():
 
@@ -21,7 +21,7 @@ def get_model():
     genai.configure(api_key=api_key)
 
     # model = genai.GenerativeModel('gemini-2.0-flash')
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     return model
 
@@ -32,14 +32,14 @@ def print_retry_attempt(retry_state):
 
 @retry(
     wait=wait_fixed(WAIT_SECONDS),  # Wait 70 seconds between retries
-    stop=stop_after_attempt(10),  # Stop after 5 attempts
+    stop=stop_after_attempt(5),  # Stop after 5 attempts
     retry=retry_if_exception_type(Exception),  # Retry on any exception
     before_sleep=print_retry_attempt,  # Print a message before sleeping
 )
 def call_llm(model, prompt):
 
     generation_config = types.GenerationConfig(
-        temperature=0.1
+        temperature=0.01
     )
     response = model.generate_content(prompt,
                                       generation_config=generation_config
