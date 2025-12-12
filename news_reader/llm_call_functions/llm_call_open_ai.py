@@ -34,12 +34,12 @@ def print_retry_attempt(retry_state):
     print(f"[WARNING] OpenAI API Issue: {exception}. Pausing {WAIT_SECONDS}s... (Attempt {retry_state.attempt_number})")
 
 
-@retry(
-    wait=wait_fixed(WAIT_SECONDS),
-    stop=stop_after_attempt(3),
-    retry=retry_if_exception_type(Exception),
-    before_sleep=print_retry_attempt,
-)
+# @retry(
+#     wait=wait_fixed(WAIT_SECONDS),
+#     stop=stop_after_attempt(3),
+#     retry=retry_if_exception_type(Exception),
+#     before_sleep=print_retry_attempt,
+# )
 def call_llm(client, prompt):
     """
     Calls the OpenAI API using the modern 'client.responses.create' syntax.

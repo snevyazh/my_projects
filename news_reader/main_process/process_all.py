@@ -9,8 +9,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from rss_reader import israel_rss_reader_v1 as israel_rss_reader
-from custom_functions.custom_functions import count_tokens
-from llm_call_functions import llm_call as llm_call
+from llm_call_functions import llm_call_open_ai as llm_call
 from web_scrapper import install_browsers
 from email_sender import email_sender
 from news_db import db_manager
