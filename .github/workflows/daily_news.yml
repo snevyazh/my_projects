@@ -4,11 +4,11 @@ on:
   schedule:
     # 1. Accumulation Runs (08:00, 11:00, 14:00 UTC)
     # These just fill the DB. No email.
-    - cron: '0 8,11,14 * * *'
+    - cron: '0 8,11,14,17 * * *'
     
     # 2. Final Run (17:00 UTC = 19:00 Israel Winter Time)
     # This fills the DB one last time AND sends the email.
-    - cron: '0 17 * * *'
+    - cron: '0 18 * * *'
     
   workflow_dispatch:
     inputs:
