@@ -1,3 +1,5 @@
+[![Daily News Bot](https://github.com/snevyazh/my_projects/actions/workflows/daily_news.yml/badge.svg?branch=main)](https://github.com/snevyazh/my_projects/actions/workflows/daily_news.yml)
+
 # News Reader
 
 This project is a Streamlit application that fetches news from a predefined list of RSS feeds, generates a concise news digest using a generative AI model (either Google Gemini or OpenAI's GPT), and presents it in a clean and easy-to-read format.
