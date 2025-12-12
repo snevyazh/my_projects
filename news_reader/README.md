@@ -1,91 +1,95 @@
-# News Reader
+# AI News Agent & Summarizer
 
-This project is a Streamlit application that fetches news from a predefined list of RSS feeds, generates a concise news digest using a generative AI model (either Google Gemini or OpenAI's GPT), and presents it in a clean and easy-to-read format.
+This project is a fully automated, database-backed news agent. It monitors predefined RSS feeds (specifically for Israeli news), incrementally scrapes new articles throughout the day, avoids duplicates using a cloud database, and generates a concise, AI-powered daily digest delivered via email.
 
-## Description
+## 🚀 Key Features
 
-The application provides a simple interface to trigger a news digest generation process. It runs a Python script (`main.py`) as a subprocess to fetch and process the news. The script retrieves articles from the RSS feeds specified in the configuration, uses a generative AI model to summarize them, and saves the output to a text file. The Streamlit app then displays the generated summary.
+* **Incremental Scraping:** Runs multiple times a day (morning, noon, afternoon) to spread the workload and capture breaking news.
+* **Smart Deduplication:** Uses **Supabase (PostgreSQL)** to track every processed URL, ensuring no article is summarized twice.
+* **Robust AI Integration:** Powered by **OpenAI's GPT-4o-mini** for high-quality, factual, and cost-effective summarization ($0.15/1M tokens).
+* **Stealth Scraping:** Uses `Playwright` with stealth plugins to bypass bot detection on news sites.
+* **Automated Reporting:** Aggregates all daily summaries into a clean, mobile-friendly HTML report and emails it every evening.
+* **Zero-Maintenance:** Hosted entirely on **GitHub Actions** with scheduled workflows.
 
-## Features
+## 🧠 Algorithm & Workflow Logic
 
--   Fetches news from multiple RSS feeds in parallel using a multi-threaded approach.
--   Uses generative AI models (Gemini and OpenAI) to create a news digest.
--   Displays the digest in a Streamlit web application.
--   Real-time logging of the news processing script.
--   Configuration of RSS feeds and models through a TOML file.
--   Secure management of API keys using Streamlit secrets.
+The bot operates in two distinct modes: **Accumulation** and **Reporting**.
 
-## Project Structure
+### Phase 1: The Accumulation Algorithm (Runs 3x Daily)
+*Goal: detailed processing of new articles without sending incomplete reports.*
 
-```
+1.  **Initialize & Config:**
+    * Load RSS feed URLs from `config.toml`.
+    * Connect to Supabase DB using secrets.
+    * Initialize the OpenAI client.
+
+2.  **Feed Parsing:**
+    * Fetch the latest XML data from all configured RSS feeds.
+    * Extract article Links, Titles, and Publication Dates.
+    * **Filter:** Discard articles older than the defined time window (e.g., 24 hours).
+
+3.  **Deduplication (The Critical Step):**
+    * For every potential article link:
+        * **Query DB:** Check table `processed_articles` for the URL.
+        * **Decision:**
+            * **Found?** $\rightarrow$ SKIP (Stop processing this item).
+            * **Not Found?** $\rightarrow$ PROCEED to scraping.
+
+4.  **Content Extraction:**
+    * Launch a headless Chromium browser (Playwright) with stealth headers.
+    * Navigate to the URL and handle cookie banners/popups.
+    * Extract the main body text using `trafilatura`.
+
+5.  **Micro-Summarization:**
+    * Send the raw article text to **GPT-4o-mini** with a strict "factual summary" system prompt.
+    * Receive a concise summary paragraph.
+
+6.  **Persistence:**
+    * **Step A:** Insert the URL into `processed_articles` (preventing future re-scraping).
+    * **Step B:** Insert the summary text + timestamp into `daily_summaries`.
+
+---
+
+### Phase 2: The Reporting Algorithm (Runs 1x Evening)
+*Goal: Synthesis and delivery of the daily digest.*
+
+1.  **Data Retrieval:**
+    * Query table `daily_summaries` in Supabase.
+    * Select ALL summaries where `run_date` matches **Today**.
+
+2.  **Master Synthesis:**
+    * Concatenate all individual summaries into one large text block.
+    * Send this block to **GPT-4o-mini** with a "newsletter generation" prompt.
+    * The AI organizes the news by topic, removes redundancy, and formats it as Markdown.
+
+3.  **Formatting & Delivery:**
+    * Convert the AI Markdown output into a styled HTML email template.
+    * Connect to Gmail SMTP server.
+    * Send the email to the subscriber list.
+
+## 📂 Project Structure
+
+```text
 news_reader/
-├── config/                  # Configuration files
+├── config/                  # Configuration files (Feed URLs, worker counts)
 │   └── config.toml
-├── main_process/            # Main news processing logic
-│   └── main.py
-├── output/                  # Generated news digests
-├── prompts/                 # Prompts for the LLM
-├── rss_reader/              # RSS feed reader
-│   └── israel_rss_reader.py
-├── web_app/                 # Streamlit web application
-│   └── app.py
-├── web_scrapper/            # Web scraping functions
-├── .streamlit/
-│   └── secrets.toml         # API keys and secrets
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
-
-## Installation
-
-1.  Clone the repository:
-    ```bash
-    git clone <repository-url>
-    ```
-2.  Navigate to the project directory:
-    ```bash
-    cd news_reader
-    ```
-3.  Install the required dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## Configuration
-
-1.  **RSS Feeds and Models**: The RSS feeds and the OpenAI model are configured in the `config/config.toml` file.
-
-2.  **API Keys**: The application requires API keys for both Google Gemini and OpenAI. You need to create a `.streamlit/secrets.toml` file in the project's root directory with the following content:
-    ```toml
-    [secrets]
-    GEMINI_API_KEY = "your_gemini_key_here"
-    OPEN_AI_KEY = "your_openai_key_here"
-
-    [model]
-    open_ai_model = "gpt-4-turbo-preview"
-    ```
-    Replace the placeholder keys with your actual API keys.
-
-## Usage
-
-To run the application, navigate to the project's root directory and execute the following command in your terminal:
-
-```bash
-python -m streamlit run web_app/app.py
-```
-
-This will start the Streamlit server and open the application in your web browser. Click the "Run Daily Digest" button to generate a new news summary.
-
-## Dependencies
-
-The project uses the following major dependencies:
-
--   `streamlit`: For the web application interface.
--   `google-generativeai`: To interact with the Google Gemini model.
--   `openai`: To interact with the OpenAI models.
--   `feedparser`: To parse RSS feeds.
--   `newspaper3k`: To extract article content.
--   `toml`: For configuration file management.
-
-For a complete list of dependencies, please see the `requirements.txt` file.
+├── main_process/            # Orchestration logic
+│   └── process_all.py       # Implements the Algorithm described above
+├── news_db/                 # Database interaction layer
+│   └── db_manager.py        # Handles Supabase connections & Queries
+├── llm_call_functions/      # AI Model logic
+│   └── llm_call.py          # OpenAI GPT-4o-mini wrapper (Tenacity + Retry)
+├── rss_reader/              # Feed parsing logic
+│   └── israel_rss_reader_v1.py
+├── web_scrapper/            # Headless browser automation
+│   └── scrapper_v2.py       # Playwright stealth scraper
+├── email_sender/            # Email delivery system
+├── prompts/                 # System prompts for the LLM
+├── output/                  # Temporary local storage (for logs/HTML)
+├── .streamlit/              # Local secrets storage
+│   └── secrets.toml
+├── .github/workflows/       # Automation instructions
+│   └── daily_news.yml
+├── main.py                  # Entry point (CLI)
+├── requirements.txt         # Python dependencies
+└── README.md
