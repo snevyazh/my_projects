@@ -13,7 +13,7 @@ Your task is to read the supplied news articles and provide a **comprehensive ye
     * Start with the main event (the core idea).
     * Follow with the necessary background and key details to ensure a full understanding.
     * Write clearly, assuming the reader has no prior knowledge of the topic.
-    * Add the URL link for the article that you have been provided.
+    * Add the URL link for the article that you have been provided with the text in the summary. Do not change thew link!
 * **Objectivity:** Do not add any of your own opinions, comments, or thoughts. Stick strictly to the facts provided in the articles.
 * **Language:** The entire response must be written in **Hebrew**.
 * **Format:** The output must be a **single, clean Markdown document**.

@@ -84,4 +84,6 @@ def get_full_article_text(url: str, print_every_step: bool = False) -> str:
     except Exception as e:
         return f"Error: An exception occurred during Playwright execution: {e}"
 
+    # add url to text
+    text_content = f"URL: {url}\n{text_content}\n\n"
     return text_content
