@@ -2,14 +2,30 @@ name: Daily News Bot
 
 on:
   schedule:
-    - cron: '0 6,17 * * *'
+    # 1. Accumulation Runs (08:00, 11:00, 14:00 UTC)
+    # These just fill the DB. No email.
+    - cron: '0 8,11,14 * * *'
+    
+    # 2. Final Run (17:00 UTC = 19:00 Israel Winter Time)
+    # This fills the DB one last time AND sends the email.
+    - cron: '0 17 * * *'
+    
   workflow_dispatch:
+    inputs:
+      send_report:
+        description: 'Send Email Now?'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+        - 'yes'
+        - 'no'
 
 jobs:
   run_bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 35
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,18 +35,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # --- DEBUG STEP: THIS WILL SHOW US THE TRUTH ---
-      - name: Debug - List all files
-        run: |
-          echo "Current folder:"
-          pwd
-          echo "Files in root:"
-          ls -la
-          echo "Searching for requirements.txt..."
-          find . -name "requirements.txt"
-
       - name: Install Dependencies
-        # We explicitly 'cd' into the folder before running pip
         run: |
           cd news_reader
           python -m pip install --upgrade pip
@@ -38,7 +43,6 @@ jobs:
           playwright install chromium
 
       - name: Create Secrets File
-        # We explicitly 'cd' here too
         run: |
           cd news_reader
           mkdir -p .streamlit
@@ -47,9 +51,26 @@ jobs:
           echo 'OPEN_AI_KEY = "${{ secrets.OPENAI_API_KEY }}"' >> .streamlit/secrets.toml
           echo 'GMAIL_USER = "${{ secrets.GMAIL_USER }}"' >> .streamlit/secrets.toml
           echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
+          echo 'SUPABASE_URL = "${{ secrets.SUPABASE_URL }}"' >> .streamlit/secrets.toml
+          echo 'SUPABASE_KEY = "${{ secrets.SUPABASE_KEY }}"' >> .streamlit/secrets.toml
 
-      - name: Run News Scraper
-        # We explicitly 'cd' here too
+      # LOGIC: Check time to decide if we send email
+      - name: Run News Bot
         run: |
           cd news_reader
-          python main.py -s yes
+          
+          # Get current hour in UTC
+          HOUR=$(date -u +%H)
+          
+          # Default: Scrape Yes, Report No
+          REPORT="no"
+          
+          # If it is the 17:00 UTC run (or triggered manually with yes), set Report Yes
+          if [ "$HOUR" -eq "17" ] || [ "${{ github.event.inputs.send_report }}" == "yes" ]; then
+            REPORT="yes"
+          fi
+          
+          echo "Current Hour (UTC): $HOUR"
+          echo "Running Mode: Scrape=yes, Report=$REPORT"
+          
+          python main.py -s yes -r $REPORT
