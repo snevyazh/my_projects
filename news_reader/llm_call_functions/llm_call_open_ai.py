@@ -1,41 +1,64 @@
 import warnings
-# suppress warnings
-warnings.filterwarnings('ignore')
-import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from openai import OpenAI
 from tenacity import (
     retry,
     wait_fixed,
     stop_after_attempt,
     retry_if_exception_type,
+    before_sleep
 )
-import os
-from openai import OpenAI
-import toml as tomlib
+
+# Suppress warnings
+warnings.filterwarnings('ignore')
+
+# Wait 20 seconds between retries
+WAIT_SECONDS = 20
 
 
 def get_model():
+    """
+    Initializes the OpenAI client.
+    """
     api_key = os.getenv("OPENAI_API_KEY")
-    model = OpenAI(api_key=api_key)
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not found in environment variables.")
 
-    return model
+    client = OpenAI(api_key=api_key)
+    return client
+
+
+def print_retry_attempt(retry_state):
+    """Prints a custom message to the console before waiting."""
+    exception = retry_state.outcome.exception()
+    print(f"[WARNING] OpenAI API Issue: {exception}. Pausing {WAIT_SECONDS}s... (Attempt {retry_state.attempt_number})")
 
 
 @retry(
-    wait=wait_fixed(200),  # Wait 30 seconds between retries
-    stop=stop_after_attempt(5),  # Stop after 5 attempts
-    retry=retry_if_exception_type(Exception),  # Retry on any exception
+    wait=wait_fixed(WAIT_SECONDS),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(Exception),
+    before_sleep=print_retry_attempt,
 )
-def call_llm(model, prompt):
+def call_llm(client, prompt):
+    """
+    Calls the OpenAI API using the modern 'client.responses.create' syntax.
+    """
+    # We use gpt-4o-mini for cost efficiency ($0.15/1M tokens)
+    # You can change this to "gpt-4o" or "gpt-5.2" if you want higher intelligence.
+    model_id = "gpt-4o-mini"
 
-    model_id = os.getenv("OPENAI_MODEL")
-
-    response = model.responses.create(
+    try:
+        # Updated syntax per your request and latest OpenAI docs
+        response = client.responses.create(
             model=model_id,
-            input=prompt,
-            temperature=0.01
+            instructions="You are a helpful news summarizer. Be factual and concise.",
+            input=prompt
         )
-    return response.output[0].content[0].text
 
+        # Access the text directly
+        return response.output_text
 
+    except Exception as e:
+        # Raise the error so Tenacity catches it and retries
+        raise e
