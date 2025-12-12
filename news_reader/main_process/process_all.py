@@ -36,7 +36,7 @@ def run_process(parameters):
 
     model = llm_call.get_model()
 
-    # --- PART A: ACCUMULATION (Scrape & Summarize New) ---
+    # PART I: ACCUMULATION (Scrape & Summarize New) ---
     if parameters.scrap == 'yes':
         with open("./config/config.toml", "r") as f:
             config_data = tomlib.load(f)
@@ -71,7 +71,7 @@ def run_process(parameters):
         else:
             print("No new articles to process right now.")
 
-    # --- PART B: REPORTING (Only if flag is set) ---
+    # PART II: REPORTING (Only if flag is set) ---
     if parameters.report == 'yes':
         print("Generating Final Daily Report...")
 
