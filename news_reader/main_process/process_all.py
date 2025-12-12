@@ -18,61 +18,70 @@ warnings.filterwarnings('ignore')
 
 
 def run_process(parameters):
-    # 1. Setup
     install_browsers.check_and_install_playwright_browsers()
     run_time = datetime.today().strftime('%Y-%m-%d')
     os.makedirs("./output", exist_ok=True)
 
-    # Load Secrets
     with open("./.streamlit/secrets.toml", "r") as f:
         secret_data = tomlib.load(f)
-    os.environ["GEMINI_API_KEY"] = secret_data["secrets"]["GEMINI_API_KEY"]
     os.environ["OPENAI_API_KEY"] = secret_data["secrets"]["OPEN_AI_KEY"]
     os.environ["SUPABASE_URL"] = secret_data["secrets"]["SUPABASE_URL"]
     os.environ["SUPABASE_KEY"] = secret_data["secrets"]["SUPABASE_KEY"]
 
     model = llm_call.get_model()
 
-    # --- PART A: ACCUMULATION (Scrape & Summarize New) ---
+    # --- PART A: ACCUMULATION ---
     if parameters.scrap == 'yes':
         with open("./config/config.toml", "r") as f:
             config_data = tomlib.load(f)
         ISRAELI_NEWS_FEEDS = config_data["feeds"]["ISRAELI_NEWS_FEEDS"]
 
-        # This returns ONLY articles we haven't seen yet
-        full_text, count = israel_rss_reader.get_text_for_llm(ISRAELI_NEWS_FEEDS)
+        # Get structured dictionary instead of string
+        feed_data_dict, count = israel_rss_reader.get_text_for_llm(ISRAELI_NEWS_FEEDS)
 
         if count > 0:
             print(f"Summarizing {count} new articles...")
             with open("./prompts/prompt_first_summary.md", 'r', encoding='utf-8') as f:
                 prompt_template_1 = f.read()
 
-            feed_texts = full_text.split("XXX")
-            for i, text in enumerate(feed_texts):
-                if not text.strip(): continue
+            # Iterate through the feeds in the dictionary
+            for feed_url, data in feed_data_dict.items():
+                texts = data['texts']
+                metadata_list = data['metadata']  # List of (url, title) tuples
 
-                print(f"  - Summarizing Feed batch {i + 1}...")
+                if not texts:
+                    continue
+
+                # Combine all articles for this feed into one prompt
+                combined_text = "\n\n".join(texts)
+
+                print(f"  - Summarizing batch for feed...")
                 try:
-                    prompt = prompt_template_1.format(text)
+                    prompt = prompt_template_1.format(combined_text)
                     summary = llm_call.call_llm(model, prompt)
 
                     if summary:
-                        # SAVE SUMMARY TO DB
+                        # 1. SAVE SUMMARY
                         db_manager.save_feed_summary(summary)
-                        print("    > Saved summary to DB.")
+                        print("    > Summary saved.")
+
+                        # 2. COMMIT URLs (Transactional Safety)
+                        # We only mark them as processed NOW, after success.
+                        for link, title in metadata_list:
+                            db_manager.mark_article_processed(link, title)
+                        print(f"    > Marked {len(metadata_list)} articles as processed.")
+
                 except Exception as e:
-                    print(f"    [Error] Summarization failed: {e}")
+                    print(f"    [CRITICAL ERROR] Feed failed: {e}")
+                    print("    > Articles were NOT marked as processed and will be retried next time.")
 
-                if i < len(feed_texts) - 1:
-                    time.sleep(5)
+                time.sleep(2)
         else:
-            print("No new articles to process right now.")
+            print("No new articles to process.")
 
-    # --- PART B: REPORTING (Only if flag is set) ---
+    # --- PART B: REPORTING ---
     if parameters.report == 'yes':
         print("Generating Final Daily Report...")
-
-        # 1. Load ALL summaries from today (Morning + Afternoon + Evening)
         todays_summaries = db_manager.get_todays_summaries()
 
         if not todays_summaries:
@@ -80,9 +89,8 @@ def run_process(parameters):
             return
 
         combined_text = "\n\n".join(todays_summaries)
-        print(f"Combining {len(todays_summaries)} summary blocks from DB.")
+        print(f"Combining {len(todays_summaries)} summary blocks.")
 
-        # 2. Final Synthesis
         with open("./prompts/prompt_second_summary.md", 'r', encoding='utf-8') as f:
             prompt_template_2 = f.read()
 
@@ -91,7 +99,6 @@ def run_process(parameters):
             answer_final = llm_call.call_llm(model, prompt_final)
 
             if answer_final:
-                # HTML & Email
                 answer_final = answer_final.replace("```markdown", "").replace("```", "").strip()
                 from main_process import output_style
                 html_body = markdown.markdown(answer_final)

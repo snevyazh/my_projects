@@ -1,12 +1,11 @@
-[![Daily News Bot](https://github.com/snevyazh/my_projects/actions/workflows/daily_news.yml/badge.svg?branch=main)](https://github.com/snevyazh/my_projects/actions/workflows/daily_news.yml)
-
-# News Reader
+# AI News Agent & Summarizer
 
 This project is a fully automated, database-backed news agent. It monitors predefined RSS feeds (specifically for Israeli news), incrementally scrapes new articles throughout the day, avoids duplicates using a cloud database, and generates a concise, AI-powered daily digest delivered via email.
 
 ## 🚀 Key Features
 
 * **Incremental Scraping:** Runs multiple times a day (morning, noon, afternoon) to spread the workload and capture breaking news.
+* **Transactional Integrity:** Implements a "Safe Commit" system. Articles are only marked as "Processed" in the database *after* they have been successfully summarized. If the AI fails, the articles remain pending and are retried automatically on the next run.
 * **Smart Deduplication:** Uses **Supabase (PostgreSQL)** to track every processed URL, ensuring no article is summarized twice.
 * **Robust AI Integration:** Powered by **OpenAI's GPT-4o-mini** for high-quality, factual, and cost-effective summarization ($0.15/1M tokens).
 * **Stealth Scraping:** Uses `Playwright` with stealth plugins to bypass bot detection on news sites.
@@ -18,37 +17,30 @@ This project is a fully automated, database-backed news agent. It monitors prede
 The bot operates in two distinct modes: **Accumulation** and **Reporting**.
 
 ### Phase 1: The Accumulation Algorithm (Runs 3x Daily)
-*Goal: detailed processing of new articles without sending incomplete reports.*
+*Goal: detailed processing of new articles with fail-safe logic.*
 
 1.  **Initialize & Config:**
     * Load RSS feed URLs from `config.toml`.
-    * Connect to Supabase DB using secrets.
-    * Initialize the OpenAI client.
+    * Connect to Supabase DB and OpenAI using secrets.
 
-2.  **Feed Parsing:**
+2.  **Feed Parsing & Filtering:**
     * Fetch the latest XML data from all configured RSS feeds.
-    * Extract article Links, Titles, and Publication Dates.
-    * **Filter:** Discard articles older than the defined time window (e.g., 24 hours).
+    * **Deduplication Check:** Query the `processed_articles` DB table for every link.
+    * **Result:** A list of *only* new, unseen articles.
 
-3.  **Deduplication (The Critical Step):**
-    * For every potential article link:
-        * **Query DB:** Check table `processed_articles` for the URL.
-        * **Decision:**
-            * **Found?** $\rightarrow$ SKIP (Stop processing this item).
-            * **Not Found?** $\rightarrow$ PROCEED to scraping.
-
-4.  **Content Extraction:**
+3.  **Content Extraction:**
     * Launch a headless Chromium browser (Playwright) with stealth headers.
-    * Navigate to the URL and handle cookie banners/popups.
-    * Extract the main body text using `trafilatura`.
+    * Scrape the full text of valid articles.
+    * **Output:** A structured dictionary of feed data (Links + Text), *without* saving to the DB yet.
 
-5.  **Micro-Summarization:**
-    * Send the raw article text to **GPT-4o-mini** with a strict "factual summary" system prompt.
-    * Receive a concise summary paragraph.
-
-6.  **Persistence:**
-    * **Step A:** Insert the URL into `processed_articles` (preventing future re-scraping).
-    * **Step B:** Insert the summary text + timestamp into `daily_summaries`.
+4.  **Transactional Summarization (The Critical Step):**
+    * The system takes the batch of new texts for a specific feed.
+    * **Action:** Sends the text to **GPT-4o-mini** for summarization.
+    * **Verification:**
+        * ❌ **If AI Fails:** The process stops for this feed. Exceptions are logged. The articles are **NOT** marked as processed. They will be picked up again in the next run.
+        * ✅ **If AI Succeeds:**
+            1.  Save the generated summary to the `daily_summaries` table.
+            2.  **COMMIT:** Iterate through the source URLs and insert them into the `processed_articles` table.
 
 ---
 
@@ -76,11 +68,11 @@ news_reader/
 ├── config/                  # Configuration files (Feed URLs, worker counts)
 │   └── config.toml
 ├── main_process/            # Orchestration logic
-│   └── process_all.py       # Implements the Algorithm described above
+│   └── process_all.py       # Implements the Transactional Algorithm
 ├── news_db/                 # Database interaction layer
 │   └── db_manager.py        # Handles Supabase connections & Queries
 ├── llm_call_functions/      # AI Model logic
-│   └── llm_call.py          # OpenAI GPT-4o-mini wrapper (Tenacity + Retry)
+│   └── llm_call_open_ai.py  # OpenAI GPT-4o-mini wrapper (Tenacity + Retry)
 ├── rss_reader/              # Feed parsing logic
 │   └── israel_rss_reader_v1.py
 ├── web_scrapper/            # Headless browser automation
