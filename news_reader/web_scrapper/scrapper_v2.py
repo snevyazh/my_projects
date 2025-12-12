@@ -6,11 +6,9 @@ Stealth is used to avoid bot detection.
 import sys
 import os
 
-# Ensure the root directory is in the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from playwright.sync_api import sync_playwright
-# V2.0.0+ Import: Uses the Stealth class instead of stealth_sync function
 from playwright_stealth import Stealth
 import trafilatura
 
@@ -26,7 +24,6 @@ def get_full_article_text(url: str, print_every_step: bool = False) -> str:
     text_content = "Error: Could not fetch article text."
 
     try:
-        # --- NEW: Correct Pattern for Playwright-Stealth v2.0.0 ---
         # We wrap the playwright context with Stealth().use_sync()
         # This automatically applies stealth to all pages created.
         stealth = Stealth()
@@ -41,9 +38,6 @@ def get_full_article_text(url: str, print_every_step: bool = False) -> str:
 
             try:
                 page = browser.new_page()
-
-                # Note: In v2.0.0, stealth is applied automatically!
-                # We do NOT need to call stealth_sync(page).
 
                 # 1. Navigate
                 if print_every_step:

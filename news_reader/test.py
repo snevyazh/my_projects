@@ -39,26 +39,7 @@ import os
 # print(result)
 
 
-from openai import OpenAI
 
-
-OPEN_AI_KEY = "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"
-
-model = OpenAI(api_key=OPEN_AI_KEY)
-
-def call_llm(model, prompt):
-
-    model_id = "gpt-4o-mini"
-
-    response = model.responses.create(
-            model=model_id,
-            input=prompt,
-            temperature=0.01
-        )
-    return response.output[0].content[0].text
-
-prompt = "What is the capital of France?"
-print(call_llm(model, prompt))
 
 
 

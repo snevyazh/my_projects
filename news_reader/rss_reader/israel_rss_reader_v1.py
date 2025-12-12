@@ -59,8 +59,6 @@ def _scrape_single_article(entry, start_date):
         if "Error:" in full_text:
             return None
 
-        # --- CHANGE: WE DO NOT SAVE TO DB HERE ANYMORE ---
-
         feed_url = entry.get('feed_url', 'Unknown Feed')
         summary = entry.get('summary', 'No summary available.')
         formatted_text = (
