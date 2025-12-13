@@ -24,7 +24,7 @@ def run_process(parameters):
 
     with open("./.streamlit/secrets.toml", "r") as f:
         secret_data = tomlib.load(f)
-    os.environ["OPENAI_API_KEY"] = secret_data["secrets"]["OPEN_AI_KEY"]
+    os.environ["OPEN_AI_KEY"] = secret_data["secrets"]["OPEN_AI_KEY"]
     os.environ["SUPABASE_URL"] = secret_data["secrets"]["SUPABASE_URL"]
     os.environ["SUPABASE_KEY"] = secret_data["secrets"]["SUPABASE_KEY"]
 
