@@ -1,6 +1,6 @@
 # AI News Agent & Summarizer
 
-This project is a fully automated, database-backed news agent. It monitors predefined RSS feeds (specifically for Israeli news), incrementally scrapes new articles throughout the day, avoids duplicates using a cloud database, and generates a concise, AI-powered daily digest delivered via email.
+Automated, LLM-based news reader. It monitors predefined RSS feeds (specifically for Israeli news), incrementally scrapes new articles throughout the day, avoids duplicates using a cloud database, and generates a concise, AI-powered daily digest delivered via email.
 
 ## 🚀 Key Features
 
