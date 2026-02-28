@@ -9,7 +9,7 @@ from tqdm import tqdm
 import concurrent.futures
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from web_scrapper import scrapper_v2 as scrapper
+from web_scrapper import scrapper_v3 as scrapper
 from news_db import db_manager
 
 
