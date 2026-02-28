@@ -55,7 +55,7 @@ def mark_article_processed(url, title=""):
 
 
 def delete_old_articles(days_to_keep=7):
-    """Deletes old processed article logs to keep the DB small."""
+    """Deletes old processed article logs and daily summaries to keep the DB small."""
     supabase = get_db_client()
     if not supabase: return
     
@@ -64,14 +64,21 @@ def delete_old_articles(days_to_keep=7):
         threshold_date = datetime.now(pytz.utc) - timedelta(days=days_to_keep)
         threshold_iso = threshold_date.isoformat()
         
-        # Assuming the standard Supabase 'created_at' column exists
-        response = supabase.table("processed_articles").delete().lt("created_at", threshold_iso).execute()
-        
-        deleted_count = len(response.data) if response.data else 0
-        if deleted_count > 0:
-            print(f"[DB Cleanup] Deleted {deleted_count} old tracking URLs from Supabase.")
+        # 1. Clean processed_articles (using standard Supabase 'created_at')
+        response_articles = supabase.table("processed_articles").delete().lt("created_at", threshold_iso).execute()
+        deleted_articles = len(response_articles.data) if response_articles.data else 0
+        if deleted_articles > 0:
+            print(f"[DB Cleanup] Deleted {deleted_articles} old tracking URLs.")
+            
+        # 2. Clean daily_summaries (using our custom 'run_date' string YYYY-MM-DD format)
+        threshold_run_date = threshold_date.strftime("%Y-%m-%d")
+        response_summaries = supabase.table("daily_summaries").delete().lt("run_date", threshold_run_date).execute()
+        deleted_summaries = len(response_summaries.data) if response_summaries.data else 0
+        if deleted_summaries > 0:
+            print(f"[DB Cleanup] Deleted {deleted_summaries} old intermediate summaries.")
+            
     except Exception as e:
-        print(f"[DB Cleanup Error] Failed to delete old URLs (perhaps missing 'created_at' column?): {e}")
+        print(f"[DB Cleanup Error] Failed to complete database cleanup: {e}")
 
 
 def save_feed_summary(summary_text):
