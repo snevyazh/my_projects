@@ -54,6 +54,26 @@ def mark_article_processed(url, title=""):
         print(f"[DB Log] Could not save {url}: {e}")
 
 
+def delete_old_articles(days_to_keep=7):
+    """Deletes old processed article logs to keep the DB small."""
+    supabase = get_db_client()
+    if not supabase: return
+    
+    try:
+        from datetime import timedelta
+        threshold_date = datetime.now(pytz.utc) - timedelta(days=days_to_keep)
+        threshold_iso = threshold_date.isoformat()
+        
+        # Assuming the standard Supabase 'created_at' column exists
+        response = supabase.table("processed_articles").delete().lt("created_at", threshold_iso).execute()
+        
+        deleted_count = len(response.data) if response.data else 0
+        if deleted_count > 0:
+            print(f"[DB Cleanup] Deleted {deleted_count} old tracking URLs from Supabase.")
+    except Exception as e:
+        print(f"[DB Cleanup Error] Failed to delete old URLs (perhaps missing 'created_at' column?): {e}")
+
+
 def save_feed_summary(summary_text):
     """Saves a chunk of AI summary to the database."""
     supabase = get_db_client()
