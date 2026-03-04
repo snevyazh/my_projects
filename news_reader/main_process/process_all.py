@@ -79,6 +79,38 @@ def run_process(parameters):
         else:
             print("No new articles to process.")
 
+        # --- TELEGRAM PROCESSING ---
+        if "telegram" in config_data and "channels" in config_data["telegram"]:
+            from telegram_reader import telegram_reader
+            
+            with open("./prompts/prompt_telegram_summary.md", 'r', encoding='utf-8') as f:
+                prompt_telegram = f.read()
+                
+            telegram_channels = config_data["telegram"]["channels"]
+            for channel in telegram_channels:
+                print(f"Fetching Telegram channel: {channel}")
+                last_dt = telegram_reader.get_last_datetime(channel)
+                msgs, new_latest_dt = telegram_reader.fetch_telegram_messages(channel, last_dt)
+                
+                if not msgs:
+                    print(f"  > No new messages for {channel}")
+                    continue
+                    
+                formatted_msgs = telegram_reader.format_messages_for_llm(msgs)
+                
+                prompt = prompt_telegram.format(formatted_msgs)
+                print(f"  - Summarizing {len(msgs)} granular updates for {channel}...")
+                try:
+                    summary = llm_call.call_llm(model, prompt)
+                    if summary:
+                        db_manager.save_feed_summary(summary)
+                        print("    > Telegram summary saved.")
+                        if new_latest_dt:
+                            telegram_reader.save_last_datetime(channel, new_latest_dt)
+                except Exception as e:
+                    print(f"    [CRITICAL ERROR] Telegram channel {channel} failed: {e}")
+                time.sleep(2)
+
     # --- PART B: REPORTING ---
     if parameters.report == 'yes':
         print("Generating Final Daily Report...")
