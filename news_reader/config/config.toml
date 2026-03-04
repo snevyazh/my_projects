@@ -13,3 +13,9 @@ open_ai_model = 'gpt-4o-mini'
 
 [process]
 workers = 1
+
+[telegram]
+channels = [
+    "yediotnews25",
+    "abualiexpress"
+]
