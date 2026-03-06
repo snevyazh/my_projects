@@ -53,6 +53,8 @@ jobs:
           echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
           echo 'SUPABASE_URL = "${{ secrets.SUPABASE_URL }}"' >> .streamlit/secrets.toml
           echo 'SUPABASE_KEY = "${{ secrets.SUPABASE_KEY }}"' >> .streamlit/secrets.toml
+          echo 'TELEGRAM_BOT_TOKEN = "${{ secrets.TELEGRAM_BOT_TOKEN }}"' >> .streamlit/secrets.toml
+          echo 'TELEGRAM_CHAT_ID = "${{ secrets.TELEGRAM_CHAT_ID }}"' >> .streamlit/secrets.toml
 
       # LOGIC: Check time to decide if we send email
       - name: Run News Bot
