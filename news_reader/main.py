@@ -5,7 +5,13 @@ import time
 
 def main(parameters=None):
     start_time = time.time()
-    process_all.run_process(parameters)
+    
+    if getattr(parameters, 'telegram', 'no') == 'yes':
+        from main_process import telegram_incremental
+        telegram_incremental.run_telegram_update()
+    else:
+        process_all.run_process(parameters)
+        
     print(f"\n\nRun time: {time.time() - start_time:.2f} seconds")
 
 
@@ -21,6 +27,12 @@ if __name__ == '__main__':
     # -r yes: Generate final email from DB
     parser.add_argument('-r', '--report',
                         help='Send final report email?',
+                        required=False,
+                        default='no')
+
+    # -t yes: Run Incremental Telegram Fetch and Send
+    parser.add_argument('-t', '--telegram',
+                        help='Run Incremental Telegram fetch?',
                         required=False,
                         default='no')
 

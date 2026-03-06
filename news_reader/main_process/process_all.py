@@ -28,7 +28,10 @@ def run_process(parameters):
     os.environ["SUPABASE_URL"] = secret_data["secrets"]["SUPABASE_URL"]
     os.environ["SUPABASE_KEY"] = secret_data["secrets"]["SUPABASE_KEY"]
 
-    model = llm_call.get_model()
+    with open("./config/config.toml", "r") as f:
+        config_data = tomlib.load(f)
+        
+    model_str = config_data.get("model", {}).get("open_ai_model", "gpt-4o-mini")
 
     # --- PART A: ACCUMULATION ---
     if parameters.scrap == 'yes':
@@ -58,7 +61,7 @@ def run_process(parameters):
                 print(f"  - Summarizing batch for feed...")
                 try:
                     prompt = prompt_template_1.format(combined_text)
-                    summary = llm_call.call_llm(model, prompt)
+                    summary = llm_call.call_llm(model_str, prompt)
 
                     if summary:
                         # 1. SAVE SUMMARY
@@ -79,37 +82,7 @@ def run_process(parameters):
         else:
             print("No new articles to process.")
 
-        # --- TELEGRAM PROCESSING ---
-        if "telegram" in config_data and "channels" in config_data["telegram"]:
-            from telegram_reader import telegram_reader
-            
-            with open("./prompts/prompt_telegram_summary.md", 'r', encoding='utf-8') as f:
-                prompt_telegram = f.read()
-                
-            telegram_channels = config_data["telegram"]["channels"]
-            for channel in telegram_channels:
-                print(f"Fetching Telegram channel: {channel}")
-                last_dt = telegram_reader.get_last_datetime(channel)
-                msgs, new_latest_dt = telegram_reader.fetch_telegram_messages(channel, last_dt)
-                
-                if not msgs:
-                    print(f"  > No new messages for {channel}")
-                    continue
-                    
-                formatted_msgs = telegram_reader.format_messages_for_llm(msgs)
-                
-                prompt = prompt_telegram.format(formatted_msgs)
-                print(f"  - Summarizing {len(msgs)} granular updates for {channel}...")
-                try:
-                    summary = llm_call.call_llm(model, prompt)
-                    if summary:
-                        db_manager.save_feed_summary(summary)
-                        print("    > Telegram summary saved.")
-                        if new_latest_dt:
-                            telegram_reader.save_last_datetime(channel, new_latest_dt)
-                except Exception as e:
-                    print(f"    [CRITICAL ERROR] Telegram channel {channel} failed: {e}")
-                time.sleep(2)
+
 
     # --- PART B: REPORTING ---
     if parameters.report == 'yes':
@@ -128,7 +101,7 @@ def run_process(parameters):
 
         try:
             prompt_final = prompt_template_2.format(combined_text)
-            answer_final = llm_call.call_llm(model, prompt_final)
+            answer_final = llm_call.call_llm(model_str, prompt_final)
 
             if answer_final:
                 answer_final = answer_final.replace("```markdown", "").replace("```", "").strip()
@@ -140,8 +113,21 @@ def run_process(parameters):
                 with open(filename, 'w', encoding='utf-8') as f:
                     f.write(html_output)
 
-                email_sender.send_summary_email(filename)
-                print("Daily Email Sent Successfully.")
+                with open("./config/config.toml", "r") as f:
+                    config_data = tomlib.load(f)
+
+                # Send via Email
+                if config_data.get("rss", {}).get("send_via_email", True):
+                    email_sender.send_summary_email(filename)
+                    print("Daily Email Sent Successfully.")
+
+                # Send via Telegram
+                if config_data.get("rss", {}).get("send_via_telegram", False):
+                    from telegram_reader import telegram_sender
+                    telegram_html = telegram_sender.format_markdown_for_telegram(answer_final)
+                    telegram_sender.send_telegram_message(telegram_html)
+                    print("Daily Telegram Sent Successfully.")
+                    
         except Exception as e:
             print(f"Final reporting failed: {e}")
 

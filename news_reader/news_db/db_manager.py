@@ -114,3 +114,35 @@ def get_todays_summaries():
     except Exception as e:
         print(f"[DB Error] Failed to retrieve summaries: {e}")
         return []
+
+
+def get_telegram_state(channel_name):
+    """Retrieves the last processed message datetime for a Telegram channel."""
+    supabase = get_db_client()
+    if not supabase: return None
+
+    try:
+        response = supabase.table("telegram_state").select("last_message_datetime").eq("channel_name", channel_name).execute()
+        if response.data:
+            dt_str = response.data[0]['last_message_datetime']
+            return datetime.fromisoformat(dt_str)
+        return None
+    except Exception as e:
+        print(f"[DB Error] Failed to get Telegram state for {channel_name}: {e}")
+        return None
+
+
+def save_telegram_state(channel_name, last_datetime):
+    """Saves or updates the last processed message datetime for a Telegram channel."""
+    supabase = get_db_client()
+    if not supabase: return
+
+    try:
+        data = {
+            "channel_name": channel_name,
+            "last_message_datetime": last_datetime.isoformat()
+        }
+        supabase.table("telegram_state").upsert(data).execute()
+        print(f"[DB Success] Saved Telegram state for {channel_name}.")
+    except Exception as e:
+        print(f"[DB Error] Failed to save Telegram state for {channel_name}: {e}")
