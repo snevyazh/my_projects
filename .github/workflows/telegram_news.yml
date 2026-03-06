@@ -1,0 +1,58 @@
+name: Telegram Incremental Bot
+
+on:
+  schedule:
+    # Run every 2 hours
+    - cron: '0 */2 * * *'
+    
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run incremental fetch?'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+        - 'yes'
+        - 'no'
+
+jobs:
+  run_telegram_bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          cd news_reader
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Create Secrets File
+        run: |
+          cd news_reader
+          mkdir -p .streamlit
+          echo '[secrets]' > .streamlit/secrets.toml
+          echo 'GEMINI_API_KEY = "${{ secrets.GEMINI_API_KEY }}"' >> .streamlit/secrets.toml
+          echo 'OPEN_AI_KEY = "${{ secrets.OPEN_AI_KEY }}"' >> .streamlit/secrets.toml
+          echo 'GMAIL_USER = "${{ secrets.GMAIL_USER }}"' >> .streamlit/secrets.toml
+          echo 'GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"' >> .streamlit/secrets.toml
+          echo 'SUPABASE_URL = "${{ secrets.SUPABASE_URL }}"' >> .streamlit/secrets.toml
+          echo 'SUPABASE_KEY = "${{ secrets.SUPABASE_KEY }}"' >> .streamlit/secrets.toml
+          echo 'TELEGRAM_BOT_TOKEN = "${{ secrets.TELEGRAM_BOT_TOKEN }}"' >> .streamlit/secrets.toml
+          echo 'TELEGRAM_CHAT_ID = "${{ secrets.TELEGRAM_CHAT_ID }}"' >> .streamlit/secrets.toml
+
+      - name: Run Telegram Bot
+        run: |
+          cd news_reader
+          echo "Running Incremental Telegram Fetch..."
+          python main.py -t yes
