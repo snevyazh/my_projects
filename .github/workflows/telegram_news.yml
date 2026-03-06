@@ -34,7 +34,7 @@ jobs:
         run: |
           cd news_reader
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements_telegram.txt
 
       - name: Create Secrets File
         run: |
