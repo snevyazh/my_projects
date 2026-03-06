@@ -10,6 +10,7 @@ Automated, LLM-based news reader. It monitors predefined RSS feeds (specifically
 * **Robust AI Integration:** Powered by **OpenAI's GPT-4o-mini** for high-quality, factual, and cost-effective summarization ($0.15/1M tokens).
 * **Stealth Scraping:** Uses `Playwright` with stealth plugins to bypass bot detection on news sites.
 * **Automated Reporting:** Aggregates all daily summaries into a clean, mobile-friendly HTML report and emails it every evening.
+* **Telegram Flash Integration:** Directly reads public Telegram channels, tracking state incrementally without authentication, and compiles granular "News Flashes" (מבזקים) into the final report.
 * **Zero-Maintenance:** Hosted entirely on **GitHub Actions** with scheduled workflows.
 
 ## 🧠 Algorithm & Workflow Logic
@@ -41,6 +42,12 @@ The bot operates in two distinct modes: **Accumulation** and **Reporting**.
         * ✅ **If AI Succeeds:**
             1.  Save the generated summary to the `daily_summaries` table.
             2.  **COMMIT:** Iterate through the source URLs and insert them into the `processed_articles` table.
+
+5.  **Telegram Flashes Processing:**
+    * Fetches new messages from configured public Telegram channels using a lightweight read-only API.
+    * Uses a local state tracker (`config/telegram_state.json`) to fetch only messages arriving since the last successful run.
+    * Prompts the AI to act as a "News Flash Compiler", creating de-duplicated factual bullets and ignoring empty media posts.
+    * Saves the resultant flashes to `daily_summaries`.
 
 ---
 
@@ -75,6 +82,8 @@ news_reader/
 │   └── llm_call_open_ai.py  # OpenAI GPT-4o-mini wrapper (Tenacity + Retry)
 ├── rss_reader/              # Feed parsing logic
 │   └── israel_rss_reader_v1.py
+├── telegram_reader/         # Telegram channel public API integration
+│   └── telegram_reader.py   # Fetches and formats channel messages incrementally
 ├── web_scrapper/            # Headless browser automation
 │   └── scrapper_v2.py       # Playwright stealth scraper
 ├── email_sender/            # Email delivery system

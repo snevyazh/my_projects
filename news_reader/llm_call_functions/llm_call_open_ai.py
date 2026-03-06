@@ -40,21 +40,22 @@ def print_retry_attempt(retry_state):
     retry=retry_if_exception_type(Exception),
     before_sleep=print_retry_attempt,
 )
-def call_llm(client, prompt):
+def call_llm(model_id, prompt):
     """
-    Calls the OpenAI API using the modern 'client.responses.create' syntax.
+    Calls the OpenAI API using the modern chat completion syntax.
     """
-
-    model_id = "gpt-4o-mini"
+    client = get_model()
 
     try:
-        response = client.responses.create(
+        response = client.chat.completions.create(
             model=model_id,
-            instructions="You are a helpful news summarizer. Be factual and concise.",
-            input=prompt
+            messages=[
+                {"role": "system", "content": "You are a helpful news summarizer. Be factual and concise."},
+                {"role": "user", "content": prompt}
+            ]
         )
 
-        return response.output_text
+        return response.choices[0].message.content
 
     except Exception as e:
         # tenacity catches it and retries

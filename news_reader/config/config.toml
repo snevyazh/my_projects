@@ -19,3 +19,8 @@ channels = [
     "yediotnews25",
     "abualiexpress"
 ]
+model = "gpt-5-nano"
+
+[rss]
+send_via_email = true
+send_via_telegram = true
