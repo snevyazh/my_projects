@@ -9,9 +9,9 @@ Automated, LLM-based news reader. It monitors predefined RSS feeds (specifically
 * **Smart Deduplication:** Uses **Supabase (PostgreSQL)** to track every processed URL, ensuring no article is summarized twice.
 * **Robust AI Integration:** Powered by **OpenAI's GPT-4o-mini** for high-quality, factual, and cost-effective summarization ($0.15/1M tokens).
 * **Stealth Scraping:** Uses `Playwright` with stealth plugins to bypass bot detection on news sites.
-* **Automated Reporting:** Aggregates all daily summaries into a clean, mobile-friendly HTML report and emails it every evening.
-* **Telegram Flash Integration:** Directly reads public Telegram channels, tracking state incrementally without authentication, and compiles granular "News Flashes" (מבזקים) into the final report.
-* **Zero-Maintenance:** Hosted entirely on **GitHub Actions** with scheduled workflows.
+* **Automated Reporting:** Aggregates all daily summaries into a clean HTML format and emails it, while also formatting it specifically for **Telegram delivery**.
+* **Isolated Telegram Incremental:** Fetches public Telegram channels, tracking state reliably in **Supabase** for zero-loss message ingestion, and sends granular "News Flashes" (מבזקים) to your bot every 2 hours.
+* **Serverless Architecture:** Hosted entirely on **GitHub Actions** using discrete workflows for Accumulation, Reporting, and Telegram parsing.
 
 ## 🧠 Algorithm & Workflow Logic
 
@@ -43,11 +43,20 @@ The bot operates in two distinct modes: **Accumulation** and **Reporting**.
             1.  Save the generated summary to the `daily_summaries` table.
             2.  **COMMIT:** Iterate through the source URLs and insert them into the `processed_articles` table.
 
-5.  **Telegram Flashes Processing:**
-    * Fetches new messages from configured public Telegram channels using a lightweight read-only API.
-    * Uses a local state tracker (`config/telegram_state.json`) to fetch only messages arriving since the last successful run.
-    * Prompts the AI to act as a "News Flash Compiler", creating de-duplicated factual bullets and ignoring empty media posts.
-    * Saves the resultant flashes to `daily_summaries`.
+---
+
+### Phase 2: The Telegram Incremental Algorithm (Runs Ev. 2 Hours)
+*Goal: Fast, stateless parsing of real-time operational updates.*
+
+1.  **State Retrieval:**
+    * Queries the `telegram_state` table in Supabase to find the exact `datetime` of the last successfully processed message per channel.
+2.  **Stateless Pagination:**
+    * Fetches new messages from configured public Telegram channels (e.g., `yediotnews25`, `abualiexpress`), paginating completely dynamically until it reaches the stored timestamp.
+3.  **LLM Compilation:**
+    * Prompts the **GPT-5-Nano** model to act as a "News Flash Compiler", creating de-duplicated factual bullets of tactical events.
+4.  **Delivery & State Commit:**
+    * Formats the Markdown into Telegram-safe HTML and sends it directly to the user's Bot via the `sendMessage` API (chunking at 4000 characters to prevent API errors).
+    * **Crucial:** Only if the message successfully sends does it save the new timestamps back to Supabase.
 
 ---
 
@@ -63,10 +72,20 @@ The bot operates in two distinct modes: **Accumulation** and **Reporting**.
     * Send this block to **GPT-4o-mini** with a "newsletter generation" prompt.
     * The AI organizes the news by topic, removes redundancy, and formats it as Markdown.
 
-3.  **Formatting & Delivery:**
-    * Convert the AI Markdown output into a styled HTML email template.
-    * Connect to Gmail SMTP server.
-    * Send the email to the subscriber list.
+3.  **Formatting & Delivery (Dual-Channel):**
+    * Convert the AI Markdown output into a styled HTML email template and send via Gmail SMTP.
+    * Concurrently format the AI Markdown into Telegram-compatible HTML and deploy it through the Telegram Bot API.
+
+## ⚙️ GitHub Actions Architecture
+
+The serverless scheduling is split into two discrete pipelines located in `.github/workflows/`:
+
+1.  **`daily_news.yml`:**
+    * Handles the heavy RSS scraping (Phase 1) at `08:00, 11:00, 14:00, 17:00 UTC`.
+    * Triggers the Final Report (Phase 3) at `18:00 UTC` and deploys the dual Email/Telegram digest.
+2.  **`telegram_news.yml`:**
+    * Runs isolated on a `0 */2 * * *` cron (every 2 hours).
+    * Passes the `-t yes` flag to trigger Phase 2 explicitly, ensuring RSS scraper slowness never delays operational flashes.
 
 ## 📂 Project Structure
 
@@ -83,7 +102,8 @@ news_reader/
 ├── rss_reader/              # Feed parsing logic
 │   └── israel_rss_reader_v1.py
 ├── telegram_reader/         # Telegram channel public API integration
-│   └── telegram_reader.py   # Fetches and formats channel messages incrementally
+│   ├── telegram_reader.py   # Fetches and formatting
+│   └── telegram_sender.py   # HTML conversion and Bot API sender
 ├── web_scrapper/            # Headless browser automation
 │   └── scrapper_v2.py       # Playwright stealth scraper
 ├── email_sender/            # Email delivery system
@@ -91,8 +111,9 @@ news_reader/
 ├── output/                  # Temporary local storage (for logs/HTML)
 ├── .streamlit/              # Local secrets storage
 │   └── secrets.toml
-├── .github/workflows/       # Automation instructions
-│   └── daily_news.yml
-├── main.py                  # Entry point (CLI)
+├── .github/workflows/       # Automated Pipelines
+│   ├── daily_news.yml       # RSS Scraping & Daily Digest pipeline
+│   └── telegram_news.yml    # Incremental Telegram bot pipeline
+├── main.py                  # Entry point (CLI via -s, -r, -t)
 ├── requirements.txt         # Python dependencies
 └── README.md
