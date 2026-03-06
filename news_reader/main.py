@@ -1,5 +1,4 @@
 import argparse
-from main_process import process_all
 import time
 
 
@@ -10,6 +9,7 @@ def main(parameters=None):
         from main_process import telegram_incremental
         telegram_incremental.run_telegram_update()
     else:
+        from main_process import process_all
         process_all.run_process(parameters)
         
     print(f"\n\nRun time: {time.time() - start_time:.2f} seconds")
