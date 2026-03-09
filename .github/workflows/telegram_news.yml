@@ -2,8 +2,8 @@ name: Telegram Incremental Bot
 
 on:
   schedule:
-    # Run every 2 hours from 08:00 to 22:00 Israel Time (06:00 to 20:00 UTC)
-    - cron: '0 6,8,10,12,14,16,18,20 * * *'
+    # Run every 3 hours from 08:00 to 20:00 Israel Time (06:00, 09:00, 12:00, 15:00, 18:00 UTC)
+    - cron: '0 6,9,12,15,18 * * *'
     
   workflow_dispatch:
     inputs:
