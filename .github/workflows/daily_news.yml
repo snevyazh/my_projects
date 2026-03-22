@@ -6,9 +6,10 @@ on:
     # These just scrape new articles and save them to Supabase.
     - cron: '0 8,11,14,17 * * *'
     
-    # 2. Final Run (10:00 UTC = 12:00 Israel, 18:00 UTC = 20:00 Israel)
-    # This scrapes one last time AND sends the email and telegram report.
-    - cron: '0 10,18 * * *'
+    # 2. Final Run (10:30 and 20:00 UTC)
+    # This scrapes one last time AND sends the telegram report.
+    - cron: '30 10 * * *'
+    - cron: '0 20 * * *'
     
   workflow_dispatch:
     inputs:
@@ -68,9 +69,9 @@ jobs:
           REPORT="no"
           SCRAPE="yes"
           
-          # If it is the 10:00 or 18:00 UTC run, we ENABLE reporting
+          # If it is the 10:00 or 20:00 UTC run, we ENABLE reporting
           # We keep SCRAPE="yes" so we catch breaking news from the last hour
-          if [ "$HOUR" -eq "10" ] || [ "$HOUR" -eq "18" ]; then
+          if [ "$HOUR" -eq "10" ] || [ "$HOUR" -eq "20" ]; then
             REPORT="yes"
           fi
           
