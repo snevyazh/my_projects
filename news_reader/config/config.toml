@@ -22,5 +22,5 @@ channels = [
 model = "gpt-5-nano"
 
 [rss]
-send_via_email = true
+send_via_email = false
 send_via_telegram = true
