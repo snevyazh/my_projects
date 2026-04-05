@@ -9,7 +9,8 @@ ISRAELI_NEWS_FEEDS = [
 ]
 
 [model]
-open_ai_model = 'gpt-5.4-nano'
+open_ai_model = 'gpt-5.4-nano'      # map: per-article summarization
+report_model = 'gpt-5.4-mini'       # reduce: cross-document dedup merge
 
 [process]
 workers = 1

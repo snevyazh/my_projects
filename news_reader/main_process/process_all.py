@@ -31,7 +31,8 @@ def run_process(parameters):
     with open("./config/config.toml", "r") as f:
         config_data = tomlib.load(f)
         
-    model_str = config_data.get("model", {}).get("open_ai_model", "gpt-4o-mini")
+    model_str = config_data.get("model", {}).get("open_ai_model", "gpt-5.4-nano")
+    report_model_str = config_data.get("model", {}).get("report_model", model_str)
 
     # --- PART A: ACCUMULATION ---
     if parameters.scrap == 'yes':
@@ -101,7 +102,8 @@ def run_process(parameters):
 
         try:
             prompt_final = prompt_template_2.format(combined_text)
-            answer_final = llm_call.call_llm(model_str, prompt_final)
+            print(f"Running dedup merge with model: {report_model_str}")
+            answer_final = llm_call.call_llm(report_model_str, prompt_final)
 
             if answer_final:
                 answer_final = answer_final.replace("```markdown", "").replace("```", "").strip()
