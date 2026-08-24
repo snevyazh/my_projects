@@ -16,7 +16,10 @@ def test_default_output_path_replaces_pdf_suffix() -> None:
 def test_streamlit_app_renders_file_selection_modes() -> None:
     app = AppTest.from_file("../app.py").run(timeout=10)
     assert not app.exception
-    assert app.title[0].value == "PDF → EPUB Converter"
+    assert app.title[0].value == "PDF/DjVu → EPUB Converter"
     assert app.radio[0].options == ["Local file selector", "Browser upload"]
-    assert any(button.label == "Choose PDF…" for button in app.button)
-    assert any(button.label == "Convert PDF" for button in app.button)
+    assert any(button.label == "Choose book…" for button in app.button)
+    assert any(button.label == "Convert book" for button in app.button)
+    app.radio[0].set_value("Browser upload").run(timeout=10)
+    assert not app.exception
+    assert app.file_uploader[0].label == "Choose a PDF or DjVu book"

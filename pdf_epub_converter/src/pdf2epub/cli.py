@@ -7,20 +7,22 @@ import typer
 from rich.console import Console
 
 from .logging_utils import configure_logging
-from .pipeline import convert_pdf
+from .pipeline import SUPPORTED_INPUT_SUFFIXES, convert_document
 
 app = typer.Typer(
     name="pdf2epub",
-    help="Convert native, scanned, or mixed PDFs to clean reflowable EPUB books.",
+    help="Convert native, scanned, or mixed PDF/DjVu books to clean reflowable EPUB.",
     no_args_is_help=True,
 )
 console = Console()
 
 
-def discover_pdfs(directory: Path, recursive: bool) -> list[Path]:
+def discover_documents(directory: Path, recursive: bool) -> list[Path]:
     pattern = "**/*" if recursive else "*"
     return sorted(
-        path for path in directory.glob(pattern) if path.is_file() and path.suffix.casefold() == ".pdf"
+        path
+        for path in directory.glob(pattern)
+        if path.is_file() and path.suffix.casefold() in SUPPORTED_INPUT_SUFFIXES
     )
 
 
@@ -38,7 +40,7 @@ def output_for(source: Path, input_root: Path | None, output: Path | None) -> Pa
 
 @app.command()
 def main(
-    input_path: Annotated[Path, typer.Argument(help="PDF file or directory of PDFs")],
+    input_path: Annotated[Path, typer.Argument(help="PDF/DjVu file or directory of books")],
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Output EPUB or directory")] = None,
     recursive: Annotated[bool, typer.Option("--recursive", "-r", help="Recurse into directories")] = False,
     languages: Annotated[str, typer.Option("--languages", "-l", help="Tesseract languages joined by +")] = "rus+eng+heb",
@@ -46,8 +48,8 @@ def main(
     keep_temp: Annotated[bool, typer.Option("--keep-temp", help="Retain per-book working files")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
     no_cover: Annotated[bool, typer.Option("--no-cover", help="Do not generate a cover")] = False,
-    title: Annotated[str | None, typer.Option("--title", help="Override title (single PDF only)")] = None,
-    author: Annotated[str | None, typer.Option("--author", help="Override author (single PDF only)")] = None,
+    title: Annotated[str | None, typer.Option("--title", help="Override title (single file only)")] = None,
+    author: Annotated[str | None, typer.Option("--author", help="Override author (single file only)")] = None,
 ) -> None:
     source = input_path.expanduser().resolve()
     resolved_output = output.expanduser().resolve() if output else None
@@ -57,9 +59,9 @@ def main(
         raise typer.BadParameter("--title and --author can only be used with a single PDF")
     if source.is_dir() and resolved_output and resolved_output.suffix.casefold() == ".epub":
         raise typer.BadParameter("Directory input requires an output directory, not an .epub path")
-    inputs = discover_pdfs(source, recursive) if source.is_dir() else [source]
+    inputs = discover_documents(source, recursive) if source.is_dir() else [source]
     if not inputs:
-        console.print("[yellow]No PDF files found.[/yellow]")
+        console.print("[yellow]No PDF or DjVu files found.[/yellow]")
         raise typer.Exit(0)
     log_root = resolved_output if resolved_output and resolved_output.suffix.casefold() != ".epub" else (
         resolved_output.parent if resolved_output else (source if source.is_dir() else source.parent)
@@ -67,12 +69,12 @@ def main(
     logger = configure_logging(verbose, log_root / "pdf2epub.log")
     successful = 0
     failures: list[tuple[Path, str]] = []
-    for index, pdf in enumerate(inputs, 1):
-        target = output_for(pdf, source if source.is_dir() else None, resolved_output)
-        console.print(f"\n[bold][{index}/{len(inputs)}][/bold] {pdf}")
+    for index, document in enumerate(inputs, 1):
+        target = output_for(document, source if source.is_dir() else None, resolved_output)
+        console.print(f"\n[bold][{index}/{len(inputs)}][/bold] {document}")
         try:
-            result = convert_pdf(
-                pdf,
+            result = convert_document(
+                document,
                 target,
                 languages=languages,
                 title=title,
@@ -95,8 +97,8 @@ def main(
             if result.temp_path:
                 console.print(f"  temporary files: {result.temp_path}")
         except Exception as exc:
-            failures.append((pdf, str(exc)))
-            logger.exception("Conversion failed for %s", pdf) if verbose else logger.error(str(exc))
+            failures.append((document, str(exc)))
+            logger.exception("Conversion failed for %s", document) if verbose else logger.error(str(exc))
             console.print(f"  status: [red]FAILED[/red]\n  reason: {exc}")
     console.print(
         f"\nCompleted: {len(inputs)}\nSuccessful: {successful}\nFailed: {len(failures)}"

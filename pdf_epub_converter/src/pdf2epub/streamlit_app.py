@@ -9,7 +9,7 @@ from pathlib import Path
 import streamlit as st
 
 from pdf2epub.logging_utils import configure_logging
-from pdf2epub.pipeline import ConversionResult, convert_pdf
+from pdf2epub.pipeline import ConversionResult, SUPPORTED_INPUT_SUFFIXES, convert_document
 
 
 def clean_local_path(value: str) -> str:
@@ -58,16 +58,22 @@ def _tk_dialog(*, save: bool, initial_name: str = "") -> str | None:
         else:
             selected = filedialog.askopenfilename(
                 parent=root,
-                filetypes=[("PDF documents", "*.pdf"), ("All files", "*.*")],
+                filetypes=[
+                    ("PDF and DjVu books", "*.pdf *.djvu *.djv"),
+                    ("PDF documents", "*.pdf"),
+                    ("DjVu documents", "*.djvu *.djv"),
+                    ("All files", "*.*"),
+                ],
             )
     finally:
         root.destroy()
     return selected or None
 
 
-def choose_pdf_file() -> str | None:
+def choose_book_file() -> str | None:
     available, selected = choose_with_zenity(
-        "--title=Choose a PDF book", "--file-filter=PDF documents | *.pdf"
+        "--title=Choose a PDF or DjVu book",
+        "--file-filter=PDF and DjVu books | *.pdf *.djvu *.djv",
     )
     return selected if available else _tk_dialog(save=False)
 
@@ -131,18 +137,18 @@ def _conversion_options() -> dict[str, object]:
 
 def _render_local_mode(options: dict[str, object]) -> None:
     left, right = st.columns([1, 3])
-    if left.button("Choose PDF…", use_container_width=True):
+    if left.button("Choose book…", use_container_width=True):
         try:
-            selected = choose_pdf_file()
+            selected = choose_book_file()
             if selected:
                 st.session_state["local_pdf_path"] = selected
                 st.session_state["local_epub_path"] = str(default_output_path(Path(selected)))
         except Exception as exc:
             st.error(f"Could not open the file selector: {exc}")
     right.text_input(
-        "PDF path",
+        "PDF or DjVu path",
         key="local_pdf_path",
-        placeholder="/path/to/book.pdf",
+        placeholder="/path/to/book.pdf or book.djvu",
         label_visibility="collapsed",
     )
 
@@ -163,11 +169,11 @@ def _render_local_mode(options: dict[str, object]) -> None:
         label_visibility="collapsed",
     )
 
-    if st.button("Convert PDF", type="primary", use_container_width=True, key="convert_local"):
+    if st.button("Convert book", type="primary", use_container_width=True, key="convert_local"):
         source = Path(clean_local_path(st.session_state.get("local_pdf_path", "")))
         output = Path(clean_local_path(st.session_state.get("local_epub_path", "")))
-        if not source.is_file() or source.suffix.casefold() != ".pdf":
-            st.error("Select an existing PDF file first.")
+        if not source.is_file() or source.suffix.casefold() not in SUPPORTED_INPUT_SUFFIXES:
+            st.error("Select an existing PDF or DjVu file first.")
             return
         if not output.name:
             st.error("Choose an EPUB destination.")
@@ -178,7 +184,7 @@ def _render_local_mode(options: dict[str, object]) -> None:
             with st.status("Converting book…", expanded=True) as status:
                 st.write("Analyzing pages and selecting OCR work…")
                 logger = configure_logging(True, output.parent / "pdf2epub.log")
-                result = convert_pdf(source, output, logger=logger, **options)
+                result = convert_document(source, output, logger=logger, **options)
                 status.update(label="Conversion complete", state="complete", expanded=False)
             _show_result(result)
         except Exception as exc:
@@ -186,9 +192,11 @@ def _render_local_mode(options: dict[str, object]) -> None:
 
 
 def _render_upload_mode(options: dict[str, object]) -> None:
-    upload = st.file_uploader("Choose a PDF book", type=["pdf"], accept_multiple_files=False)
+    upload = st.file_uploader(
+        "Choose a PDF or DjVu book", type=["pdf", "djvu", "djv"], accept_multiple_files=False
+    )
     if st.button(
-        "Convert uploaded PDF",
+        "Convert uploaded book",
         type="primary",
         use_container_width=True,
         disabled=upload is None,
@@ -203,7 +211,7 @@ def _render_upload_mode(options: dict[str, object]) -> None:
                 source.write_bytes(upload.getvalue())
                 with st.status("Converting uploaded book…", expanded=True) as status:
                     st.write("Analyzing pages and selecting OCR work…")
-                    result = convert_pdf(source, output, logger=configure_logging(True), **options)
+                    result = convert_document(source, output, logger=configure_logging(True), **options)
                     epub_bytes = output.read_bytes()
                     status.update(label="Conversion complete", state="complete", expanded=False)
                 st.session_state["uploaded_result"] = result
@@ -230,8 +238,8 @@ def _render_upload_mode(options: dict[str, object]) -> None:
 
 
 def render_app() -> None:
-    st.set_page_config(page_title="PDF → EPUB", page_icon="📚", layout="centered")
-    st.title("PDF → EPUB Converter")
+    st.set_page_config(page_title="PDF/DjVu → EPUB", page_icon="📚", layout="centered")
+    st.title("PDF/DjVu → EPUB Converter")
     st.caption("Reflowable text · selective OCR · chapter detection · preserved illustrations")
 
     mode = st.radio(

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pdf2epub"
 version = "0.1.0"
-description = "Convert text, scanned, and mixed PDFs into reflowable EPUB books"
+description = "Convert text, scanned, and mixed PDF/DjVu books into reflowable EPUB"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

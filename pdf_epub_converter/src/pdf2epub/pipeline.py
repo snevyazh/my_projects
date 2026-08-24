@@ -3,20 +3,23 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .analyzer import analyze_pdf
 from .chapters import detect_chapters
 from .cleaner import clean_document
 from .config import ConversionConfig
+from .djvu import djvu_to_pdf
 from .epub import build_epub
 from .extractor import extract_document
 from .images import extract_dominant_first_page_image, render_cover
 from .layout import associate_image_captions, reconstruct_layout
-from .metadata import extract_metadata
+from .metadata import extract_metadata, title_from_filename
 from .models import Book, ImageBlock
 from .ocr import ocr_pdf
+
+SUPPORTED_INPUT_SUFFIXES = frozenset({".pdf", ".djvu", ".djv"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,3 +113,61 @@ def convert_pdf(
             shutil.rmtree(work_dir, ignore_errors=True)
         elif not succeeded:
             logger.info("Temporary files retained at %s", work_dir)
+
+
+def convert_djvu(
+    input_path: Path,
+    output_path: Path,
+    *,
+    languages: str = "rus+eng+heb",
+    title: str | None = None,
+    author: str | None = None,
+    cover: bool = True,
+    keep_temp: bool = False,
+    force: bool = False,
+    config: ConversionConfig | None = None,
+    logger: logging.Logger | None = None,
+) -> ConversionResult:
+    input_path = input_path.expanduser().resolve()
+    if not input_path.is_file() or input_path.suffix.casefold() not in {".djvu", ".djv"}:
+        raise ValueError(f"Input is not a DjVu file: {input_path}")
+    output_path = output_path.expanduser().resolve()
+    if output_path.exists() and not force:
+        raise FileExistsError(f"Output already exists (use --force): {output_path}")
+    work_dir = Path(tempfile.mkdtemp(prefix="pdf2epub-djvu-"))
+    logger = logger or logging.getLogger("pdf2epub")
+    try:
+        logger.info("Rendering DjVu pages to an OCR-ready temporary PDF")
+        pdf_path = djvu_to_pdf(input_path, work_dir)
+        result = convert_pdf(
+            pdf_path,
+            output_path,
+            languages=languages,
+            title=title or title_from_filename(input_path),
+            author=author,
+            cover=cover,
+            keep_temp=keep_temp,
+            force=force,
+            config=config,
+            logger=logger,
+        )
+        return replace(
+            result,
+            input_path=input_path,
+            temp_path=result.temp_path or (work_dir if keep_temp else None),
+        )
+    finally:
+        if not keep_temp:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        else:
+            logger.info("DjVu temporary files retained at %s", work_dir)
+
+
+def convert_document(input_path: Path, output_path: Path, **options: object) -> ConversionResult:
+    suffix = input_path.expanduser().suffix.casefold()
+    if suffix == ".pdf":
+        return convert_pdf(input_path, output_path, **options)
+    if suffix in {".djvu", ".djv"}:
+        return convert_djvu(input_path, output_path, **options)
+    supported = ", ".join(sorted(SUPPORTED_INPUT_SUFFIXES))
+    raise ValueError(f"Unsupported input format {suffix or '(none)'}; expected one of: {supported}")
