@@ -1,0 +1,22 @@
+from pathlib import Path
+
+from pdf2epub.streamlit_app import clean_local_path, default_output_path
+from streamlit.testing.v1 import AppTest
+
+
+def test_clean_local_path_expands_quotes_and_user(monkeypatch) -> None:
+    monkeypatch.setenv("HOME", "/home/example")
+    assert clean_local_path(" '~/Downloads/book.pdf' ") == "/home/example/Downloads/book.pdf"
+
+
+def test_default_output_path_replaces_pdf_suffix() -> None:
+    assert default_output_path(Path("/books/example.PDF")) == Path("/books/example.epub")
+
+
+def test_streamlit_app_renders_file_selection_modes() -> None:
+    app = AppTest.from_file("../app.py").run(timeout=10)
+    assert not app.exception
+    assert app.title[0].value == "PDF → EPUB Converter"
+    assert app.radio[0].options == ["Local file selector", "Browser upload"]
+    assert any(button.label == "Choose PDF…" for button in app.button)
+    assert any(button.label == "Convert PDF" for button in app.button)

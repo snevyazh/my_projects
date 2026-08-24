@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+.venv-windows/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.epub
+pdf2epub.log
