@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from .models import Book, Chapter, ImageBlock, TextBlock
+from .text import sanitize_xml_text
 
 CSS = """body { font-family: serif; line-height: 1.45; margin: 5%; }
 h1 { text-align: center; margin: 2em 0 1.5em; }
@@ -29,7 +30,8 @@ def _chapter_xhtml(chapter: Chapter, image_hrefs: dict[Path, str]) -> str:
     heading_written = False
     for block in chapter.blocks:
         if isinstance(block, TextBlock):
-            text = html.escape(block.text).replace("\n\n", "</p><p>")
+            safe_block_text = sanitize_xml_text(block.text)
+            text = html.escape(safe_block_text).replace("\n\n", "</p><p>")
             if block.is_heading and not heading_written:
                 parts.append(f"<h1>{text}</h1>")
                 heading_written = True
@@ -38,7 +40,9 @@ def _chapter_xhtml(chapter: Chapter, image_hrefs: dict[Path, str]) -> str:
                 parts.append(f"<p{direction}>{text}</p>")
         elif isinstance(block, ImageBlock) and block.image_path in image_hrefs:
             caption = (
-                f"<figcaption>{html.escape(block.caption)}</figcaption>" if block.caption else ""
+                f"<figcaption>{html.escape(sanitize_xml_text(block.caption))}</figcaption>"
+                if block.caption
+                else ""
             )
             parts.append(
                 f'<figure><img src="../{image_hrefs[block.image_path]}" alt="" />{caption}</figure>'
@@ -55,15 +59,20 @@ def build_epub(book: Book, output_path: Path) -> Path:
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         publication = epub.EpubBook()
-        publication.set_identifier(book.metadata.identifier or book.metadata.title)
-        publication.set_title(book.metadata.title)
-        publication.set_language(book.metadata.language or "und")
+        publication.set_identifier(
+            sanitize_xml_text(book.metadata.identifier or book.metadata.title)
+        )
+        publication.set_title(sanitize_xml_text(book.metadata.title))
+        language = sanitize_xml_text(book.metadata.language or "und")
+        publication.set_language(language)
         for author in book.metadata.authors:
-            publication.add_author(author)
+            publication.add_author(sanitize_xml_text(author))
         if book.metadata.subject:
-            publication.add_metadata("DC", "subject", book.metadata.subject)
+            publication.add_metadata(
+                "DC", "subject", sanitize_xml_text(book.metadata.subject)
+            )
         for keyword in book.metadata.keywords:
-            publication.add_metadata("DC", "subject", keyword)
+            publication.add_metadata("DC", "subject", sanitize_xml_text(keyword))
 
         style = epub.EpubItem(
             uid="style", file_name="styles/book.css", media_type="text/css", content=CSS
@@ -101,9 +110,9 @@ def build_epub(book: Book, output_path: Path) -> Path:
         chapter_items = []
         for index, chapter in enumerate(book.chapters, 1):
             item = epub.EpubHtml(
-                title=chapter.title,
+                title=sanitize_xml_text(chapter.title),
                 file_name=f"text/chapter_{index:04d}.xhtml",
-                lang=book.metadata.language or "und",
+                lang=language,
             )
             item.content = _chapter_xhtml(chapter, image_hrefs)
             item.add_item(style)

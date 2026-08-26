@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .config import ConversionConfig
 from .models import BoundingBox, PageKind
+from .text import has_invalid_xml_characters
 
 
 class PDFAnalysisError(RuntimeError):
@@ -22,6 +23,7 @@ class PageAnalysis:
     image_coverage: float
     text_coverage: float
     kind: PageKind
+    native_text_reliable: bool = True
 
 
 def _union_area(boxes: list[BoundingBox], page_area: float) -> float:
@@ -34,9 +36,11 @@ def classify_page(
     text_blocks: int,
     image_coverage: float,
     config: ConversionConfig,
+    native_text_reliable: bool = True,
 ) -> PageKind:
-    good_text = native_characters >= config.min_native_chars or (
-        native_characters >= 30 and text_blocks >= 2
+    good_text = native_text_reliable and (
+        native_characters >= config.min_native_chars
+        or (native_characters >= 30 and text_blocks >= 2)
     )
     if good_text and image_coverage >= config.mixed_image_coverage:
         return PageKind.MIXED
@@ -70,6 +74,7 @@ def analyze_pdf(path: Path, config: ConversionConfig) -> list[PageAnalysis]:
             text_boxes: list[BoundingBox] = []
             chars = 0
             text_blocks = 0
+            native_text_reliable = True
             for block in raw.get("blocks", []):
                 if block.get("type") != 0:
                     continue
@@ -81,6 +86,8 @@ def analyze_pdf(path: Path, config: ConversionConfig) -> list[PageAnalysis]:
                 if block_text.strip():
                     text_blocks += 1
                     chars += len(block_text.strip())
+                    if has_invalid_xml_characters(block_text):
+                        native_text_reliable = False
                     text_boxes.append(BoundingBox(*map(float, block["bbox"])))
             image_boxes: list[BoundingBox] = []
             for image in page.get_images(full=True):
@@ -92,7 +99,13 @@ def analyze_pdf(path: Path, config: ConversionConfig) -> list[PageAnalysis]:
                 except Exception:
                     continue
             image_coverage = _union_area(image_boxes, page_area)
-            kind = classify_page(chars, text_blocks, image_coverage, config)
+            kind = classify_page(
+                chars,
+                text_blocks,
+                image_coverage,
+                config,
+                native_text_reliable,
+            )
             analyses.append(
                 PageAnalysis(
                     page_number=index + 1,
@@ -104,6 +117,7 @@ def analyze_pdf(path: Path, config: ConversionConfig) -> list[PageAnalysis]:
                     image_coverage=image_coverage,
                     text_coverage=_union_area(text_boxes, page_area),
                     kind=kind,
+                    native_text_reliable=native_text_reliable,
                 )
             )
         return analyses
@@ -113,4 +127,3 @@ def analyze_pdf(path: Path, config: ConversionConfig) -> list[PageAnalysis]:
         raise PDFAnalysisError(f"Failed while analyzing {path}: {exc}") from exc
     finally:
         document.close()
-

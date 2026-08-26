@@ -10,6 +10,6 @@ if [[ ! -x "$streamlit_bin" ]]; then
     exit 1
 fi
 
+export PATH="$project_dir/.venv/bin:$PATH"
 cd "$project_dir"
 exec "$streamlit_bin" run "$project_dir/app.py"
-

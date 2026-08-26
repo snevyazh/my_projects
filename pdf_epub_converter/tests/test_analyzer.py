@@ -14,3 +14,9 @@ def test_classifies_native_scanned_mixed_and_empty() -> None:
 def test_short_but_structured_text_is_native() -> None:
     assert classify_page(50, 3, 0.0, ConversionConfig()) == PageKind.NATIVE
 
+
+def test_text_with_invalid_xml_characters_is_not_trusted_as_native() -> None:
+    assert (
+        classify_page(500, 5, 0.0, ConversionConfig(), native_text_reliable=False)
+        == PageKind.MIXED
+    )

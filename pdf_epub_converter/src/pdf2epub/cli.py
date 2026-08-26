@@ -48,6 +48,9 @@ def main(
     keep_temp: Annotated[bool, typer.Option("--keep-temp", help="Retain per-book working files")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
     no_cover: Annotated[bool, typer.Option("--no-cover", help="Do not generate a cover")] = False,
+    no_images: Annotated[
+        bool, typer.Option("--no-images", help="Do not include source illustrations")
+    ] = False,
     title: Annotated[str | None, typer.Option("--title", help="Override title (single file only)")] = None,
     author: Annotated[str | None, typer.Option("--author", help="Override author (single file only)")] = None,
 ) -> None:
@@ -80,6 +83,7 @@ def main(
                 title=title,
                 author=author,
                 cover=not no_cover,
+                save_images=not no_images,
                 keep_temp=keep_temp,
                 force=force,
                 logger=logger,

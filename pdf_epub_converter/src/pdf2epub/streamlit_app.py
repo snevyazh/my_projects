@@ -95,6 +95,17 @@ def default_output_path(source: Path) -> Path:
     return source.with_suffix(".epub")
 
 
+def _progress_callback(progress_bar: object):
+    def update(completed: int, total: int) -> None:
+        fraction = completed / total if total else 0.0
+        progress_bar.progress(
+            fraction,
+            text=f"Processing page {completed} of {total} — {fraction:.1%}",
+        )
+
+    return update
+
+
 def _show_result(result: ConversionResult, epub_bytes: bytes | None = None) -> None:
     st.success("Conversion completed successfully")
     first, second, third, fourth = st.columns(4)
@@ -125,12 +136,18 @@ def _conversion_options() -> dict[str, object]:
     title = left.text_input("Title override", placeholder="Use PDF metadata")
     author = right.text_input("Author override", placeholder="Use PDF metadata")
     cover = st.checkbox("Generate cover", value=True)
+    save_images = st.checkbox(
+        "Save pictures",
+        value=True,
+        help="Include illustrations from the source book in the EPUB.",
+    )
     force = st.checkbox("Overwrite an existing EPUB", value=False)
     return {
         "languages": languages.strip() or "rus+eng+heb",
         "title": title.strip() or None,
         "author": author.strip() or None,
         "cover": cover,
+        "save_images": save_images,
         "force": force,
     }
 
@@ -183,8 +200,16 @@ def _render_local_mode(options: dict[str, object]) -> None:
         try:
             with st.status("Converting book…", expanded=True) as status:
                 st.write("Analyzing pages and selecting OCR work…")
+                progress_bar = st.progress(0, text="Preparing conversion…")
                 logger = configure_logging(True, output.parent / "pdf2epub.log")
-                result = convert_document(source, output, logger=logger, **options)
+                result = convert_document(
+                    source,
+                    output,
+                    logger=logger,
+                    progress_callback=_progress_callback(progress_bar),
+                    **options,
+                )
+                progress_bar.progress(1.0, text="Conversion complete — 100%")
                 status.update(label="Conversion complete", state="complete", expanded=False)
             _show_result(result)
         except Exception as exc:
@@ -211,7 +236,15 @@ def _render_upload_mode(options: dict[str, object]) -> None:
                 source.write_bytes(upload.getvalue())
                 with st.status("Converting uploaded book…", expanded=True) as status:
                     st.write("Analyzing pages and selecting OCR work…")
-                    result = convert_document(source, output, logger=configure_logging(True), **options)
+                    progress_bar = st.progress(0, text="Preparing conversion…")
+                    result = convert_document(
+                        source,
+                        output,
+                        logger=configure_logging(True),
+                        progress_callback=_progress_callback(progress_bar),
+                        **options,
+                    )
+                    progress_bar.progress(1.0, text="Conversion complete — 100%")
                     epub_bytes = output.read_bytes()
                     status.update(label="Conversion complete", state="complete", expanded=False)
                 st.session_state["uploaded_result"] = result

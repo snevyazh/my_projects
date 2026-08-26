@@ -50,6 +50,11 @@ def extract_document(
     ocr_pages: frozenset[int],
     work_dir: Path,
     config: ConversionConfig,
+    *,
+    save_images: bool = True,
+    page_number_offset: int = 0,
+    image_dir: Path | None = None,
+    seen_images: dict[str, Path] | None = None,
 ) -> list[Page]:
     try:
         import fitz
@@ -57,13 +62,15 @@ def extract_document(
         raise ExtractionError("PyMuPDF is required for extraction") from exc
     analysis_by_page = {item.page_number: item for item in analyses}
     pages: list[Page] = []
-    seen_images: dict[str, Path] = {}
+    shared_images = seen_images if seen_images is not None else {}
+    destination_images = image_dir or (work_dir / "images")
     try:
         document = fitz.open(pdf_path)
         try:
             for index, pdf_page in enumerate(document):
-                number = index + 1
-                analysis = analysis_by_page[number]
+                local_number = index + 1
+                number = local_number + page_number_offset
+                analysis = analysis_by_page[local_number]
                 page = Page(number, pdf_page.rect.width, pdf_page.rect.height, analysis.kind)
                 raw = pdf_page.get_text("dict", sort=False)
                 for block in raw.get("blocks", []):
@@ -73,21 +80,22 @@ def extract_document(
                         block,
                         number,
                         page.width,
-                        "ocr" if number in ocr_pages else "native",
+                        "ocr" if local_number in ocr_pages else "native",
                     )
                     if parsed:
                         page.blocks.append(parsed)
-                page.blocks.extend(
-                    extract_page_images(
-                        document,
-                        pdf_page,
-                        number,
-                        analysis.kind,
-                        work_dir / "images",
-                        config,
-                        seen_images,
+                if save_images:
+                    page.blocks.extend(
+                        extract_page_images(
+                            document,
+                            pdf_page,
+                            number,
+                            analysis.kind,
+                            destination_images,
+                            config,
+                            shared_images,
+                        )
                     )
-                )
                 if not page.blocks:
                     page.warnings.append(f"Page {number} has no extracted content")
                 pages.append(page)

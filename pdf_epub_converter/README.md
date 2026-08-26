@@ -106,6 +106,7 @@ Alternatively, start it from PowerShell:
 ```
 
 The interface opens at `http://127.0.0.1:8501`. Keep the terminal window open while using it. Press `Ctrl+C` in the terminal to stop the server.
+Use **Save pictures** to include or omit source illustrations; cover generation is controlled separately.
 
 The UI provides two input methods:
 
