@@ -14,9 +14,15 @@ class ConversionConfig:
     footer_region_ratio: float = 0.12
     repeated_header_threshold: float = 0.4
     repeated_header_min_pages: int = 3
+    remove_ocr_decorations: bool = True
     min_image_width: int = 120
     min_image_height: int = 120
     minimum_image_area_ratio: float = 0.02
+    minimum_image_width_ratio: float = 0.15
+    minimum_image_height_ratio: float = 0.10
+    maximum_image_aspect_ratio: float = 6.0
+    repeated_image_threshold: float = 0.4
+    repeated_image_min_pages: int = 3
     maximum_scan_image_area_ratio: float = 0.90
     paragraph_gap_multiplier: float = 1.7
     indent_tolerance: float = 12.0
@@ -25,4 +31,3 @@ class ConversionConfig:
     cover_dpi: int = 150
     illustration_dpi: int = 180
     suspicious_image_count: int = 500
-

@@ -30,6 +30,27 @@ def _write_pdf_image(payload: dict, destination: Path) -> None:
         source.convert("RGB").save(destination, "PNG")
 
 
+def is_meaningful_image_placement(
+    bbox: BoundingBox,
+    page_width: float,
+    page_height: float,
+    config: ConversionConfig,
+) -> bool:
+    """Require an illustration to occupy substantial space in both dimensions."""
+    if page_width <= 0 or page_height <= 0 or bbox.width <= 0 or bbox.height <= 0:
+        return False
+    area_ratio = bbox.area / (page_width * page_height)
+    width_ratio = bbox.width / page_width
+    height_ratio = bbox.height / page_height
+    aspect_ratio = max(bbox.width / bbox.height, bbox.height / bbox.width)
+    return (
+        area_ratio >= config.minimum_image_area_ratio
+        and width_ratio >= config.minimum_image_width_ratio
+        and height_ratio >= config.minimum_image_height_ratio
+        and aspect_ratio <= config.maximum_image_aspect_ratio
+    )
+
+
 def extract_page_images(
     document: object,
     page: object,
@@ -41,7 +62,9 @@ def extract_page_images(
 ) -> list[ImageBlock]:
     """Extract meaningful embedded images while rejecting scan backgrounds and noise."""
     image_dir.mkdir(parents=True, exist_ok=True)
-    page_area = float(page.rect.width * page.rect.height)
+    page_width = float(page.rect.width)
+    page_height = float(page.rect.height)
+    page_area = page_width * page_height
     result: list[ImageBlock] = []
     for image in page.get_images(full=True):
         xref = image[0]
@@ -58,7 +81,9 @@ def extract_page_images(
         for rectangle in rectangles:
             bbox = BoundingBox(rectangle.x0, rectangle.y0, rectangle.x1, rectangle.y1)
             ratio = bbox.area / page_area if page_area else 0.0
-            if ratio < config.minimum_image_area_ratio:
+            if not is_meaningful_image_placement(
+                bbox, page_width, page_height, config
+            ):
                 continue
             if page_kind == PageKind.SCANNED and ratio >= config.maximum_scan_image_area_ratio:
                 continue
