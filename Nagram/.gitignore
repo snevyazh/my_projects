@@ -12,6 +12,8 @@ local.properties
 obj/
 service_account_credentials.json
 google-services.json
+/GOOGLE_VERY_SECRET_PASSWORD/
+/TMessagesProj/google-services.json
 *.keystore
 *.jks
 *.apk
