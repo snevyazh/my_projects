@@ -45,8 +45,7 @@ pip install -r requirements.txt
 ```
 
 Linux uses Zenity for native file and folder dialogs. Windows uses Tk dialogs
-provided by the standard Windows Python installation. Paths and worker process
-checks are selected automatically for the current operating system.
+provided by the standard Windows Python installation.
 
 ## Mapping
 
@@ -65,11 +64,12 @@ B2 object key:
 3. Browse it.
 4. Download it.
 5. Upload one large video.
-6. Interrupt and rerun the upload.
-7. Verify the folder by size.
-8. Only then try a large batch.
+6. Stop the upload and confirm it disappears.
+7. Only then try a large batch.
 
-Uploads above 64 MiB use boto3 multipart transfer.
+Up to three Streamlit-owned transfers can run simultaneously. Each transfer is
+single-threaded. Transfer status is kept only in memory and is discarded when
+the Streamlit session closes.
 
 ## Copy and move inside B2
 

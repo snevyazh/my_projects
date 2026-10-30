@@ -9,6 +9,7 @@
 .vscode/
 build/
 local.properties
+.gradle-user-home/
 obj/
 service_account_credentials.json
 google-services.json

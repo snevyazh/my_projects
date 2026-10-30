@@ -82,6 +82,21 @@ ALIAS_PASS=<key password>
 
 ## Build
 
+### Permanent private-build rule: no R8
+
+Never run R8 for this personal APK. Private installable builds must use:
+
+```gradle
+minifyEnabled false
+shrinkResources false
+```
+
+Do not start an APK build until both settings have been confirmed for the
+selected signed release variant. APK size is not a priority for this project;
+predictable behavior and short build times are. Do not enable minification,
+obfuscation, resource shrinking, or other store-distribution optimization
+unless the user explicitly reverses this rule.
+
 Install JDK 17, Android SDK 35, Build Tools 35.0.0, CMake, and Android NDK
 27.2.12479018. Initialize the repository dependencies when needed:
 
@@ -91,16 +106,26 @@ git submodule update --init --recursive
 ./run libs native
 ```
 
-Build an ARM64 debug APK:
+Build the signed ARM64 release APK intended for installation:
 
 ```shell
-NATIVE_TARGET=arm64-v8a ./gradlew :TMessagesProj:assembleDebug
+NATIVE_TARGET=arm64-v8a ./gradlew :TMessagesProj:assembleRelease
 ```
 
 Gradle writes the generated APK under:
 
 ```text
-./TMessagesProj/build/outputs/apk/debug/
+./TMessagesProj/build/outputs/apk/release/
+```
+
+Do not substitute `assembleDebug` when producing an installable deliverable.
+The debug variant uses the separate
+`xyz.nextalone.nagram.clean.debug` package and is not a replacement for the
+release application. A debug APK without valid variant-specific Firebase
+configuration crashes during provider initialization with:
+
+```text
+FirebaseInitProvider: Please set a valid API key
 ```
 
 Verified APKs intended for installation are also kept in the simple top-level
@@ -110,14 +135,29 @@ folder:
 ./APKs/
 ```
 
-Before distributing an APK, verify its package ID and install and launch it on
-a connected device. A successful Gradle build alone does not prove that
-runtime services such as Firebase are correctly configured.
+Before distributing or describing an APK as ready:
+
+1. Confirm that the ARM64 release task was used.
+2. Confirm that the package ID is `xyz.nextalone.nagram.clean` and does not end
+   in `.debug`.
+3. Verify the APK signing certificate against the fingerprint documented
+   above.
+4. Verify that the release Firebase configuration is present without printing
+   or exposing its credentials.
+5. Install the APK cleanly or as a signature-compatible update on a connected
+   device.
+6. Launch the installed package and confirm that it reaches its initial UI
+   without crashing.
+7. If startup fails, capture and resolve the exact crash before distributing
+   the APK.
+
+`BUILD SUCCESSFUL` proves that packaging completed; it does not prove that the
+APK works at runtime.
 
 ## Install and verify
 
 ```shell
-adb install -r ./APKs/Nagram-arm64-debug.apk
+adb install -r ./APKs/Nagram-arm64-release.apk
 adb shell monkey -p xyz.nextalone.nagram.clean 1
 ```
 
