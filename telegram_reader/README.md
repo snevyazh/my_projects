@@ -57,9 +57,13 @@ python telegram_reader.py download -1001421782518
 
 # Or download only the newest 500 messages to a chosen directory
 python telegram_reader.py download -1001421782518 --limit 500 --output downloads/my_channel
+
+# Change the default 10 MB per-file limit, or use 0 for no size limit
+python telegram_reader.py download -1001421782518 --max-media-mb 50
+python telegram_reader.py download -1001421782518 --max-media-mb 0
 ```
 
-Before downloading, the command reports the channel's overall message count and then displays a `tqdm` progress bar. The default download directory is named after the channel (with characters that Windows forbids in folder names replaced by `_`). It contains `messages.json` plus media grouped into `photos/`, `videos/`, `audio/`, `documents/`, `gifs/`, `stickers/`, and `other/`. Each filename starts with its Telegram message ID, making paths stable across repeated downloads; existing media is reused. Use `--output` to override the folder.
+Before downloading, the command reports the channel's overall message count and then displays a `tqdm` progress bar. MP3 attachments are filtered out, and media larger than 10 MB is skipped by default; `media_size_bytes` and the reason for skipping are stored in `messages.json`. Media that times out is also skipped instead of stopping the download, and rerunning the command retries missing files. The default download directory is named after the channel (with characters that Windows forbids in folder names replaced by `_`). It contains `messages.json` plus media grouped into `photos/`, `videos/`, `audio/`, `documents/`, `gifs/`, `stickers/`, and `other/`. Each filename starts with its Telegram message ID, making paths stable across repeated downloads; existing media is reused. Use `--output` to override the folder.
 
 Run `python telegram_reader.py --help` or add `--help` after a command for all options.
 

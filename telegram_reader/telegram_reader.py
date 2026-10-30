@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--output", type=Path,
         help="Output directory (default: downloads/<chat-id>)",
     )
+    download.add_argument(
+        "--max-media-mb",
+        type=nonnegative_float,
+        default=10.0,
+        help="Skip media larger than this many MB (default: 10; 0 disables the limit)",
+    )
     return parser
 
 
@@ -63,6 +69,13 @@ def positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
+    return number
+
+
+def nonnegative_float(value: str) -> float:
+    number = float(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
     return number
 
 
@@ -148,6 +161,19 @@ def media_destination(message: Any, output: Path) -> Path:
     return output / category / filename
 
 
+def is_mp3(message: Any) -> bool:
+    """Return whether a message attachment is an MP3 audio file."""
+    file = getattr(message, "file", None)
+    name = getattr(file, "name", None) or ""
+    extension = getattr(file, "ext", None) or ""
+    mime_type = getattr(file, "mime_type", None) or ""
+    return (
+        Path(name).suffix.casefold() == ".mp3"
+        or extension.casefold() == ".mp3"
+        or mime_type.casefold() in {"audio/mpeg", "audio/mp3"}
+    )
+
+
 async def resolve_chat(client: TelegramClient, reference: str) -> Any:
     candidate: int | str = int(reference) if reference.lstrip("-").isdigit() else reference
     try:
@@ -225,30 +251,58 @@ async def run(args: argparse.Namespace) -> None:
             records = []
             downloaded = 0
             reused = 0
+            skipped = 0
+            max_media_bytes = int(args.max_media_mb * 1024 * 1024)
             progress = tqdm(total=planned, desc="Messages", unit="msg", dynamic_ncols=True)
             try:
                 async for message in client.iter_messages(chat, limit=args.limit):
                     record = await message_record(message, chat)
                     record["media_path"] = None
+                    record["media_error"] = None
+                    media_size = getattr(message.file, "size", None)
+                    record["media_size_bytes"] = media_size
                     if message.media is not None:
-                        destination = media_destination(message, output)
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        if destination.is_file():
-                            saved_path = str(destination)
-                            reused += 1
+                        if is_mp3(message):
+                            skipped += 1
+                            record["media_error"] = "Skipped: MP3 media is filtered out"
+                        elif max_media_bytes and media_size and media_size > max_media_bytes:
+                            skipped += 1
+                            record["media_error"] = (
+                                f"Skipped: media is {media_size / 1024 / 1024:.1f} MB; "
+                                f"limit is {args.max_media_mb:g} MB"
+                            )
                         else:
-                            saved_path = await message.download_media(file=str(destination))
+                            destination = media_destination(message, output)
+                            destination.parent.mkdir(parents=True, exist_ok=True)
+                            if destination.is_file():
+                                saved_path = str(destination)
+                                reused += 1
+                            else:
+                                try:
+                                    saved_path = await message.download_media(file=str(destination))
+                                except TimeoutError as exc:
+                                    destination.unlink(missing_ok=True)
+                                    saved_path = None
+                                    skipped += 1
+                                    record["media_error"] = f"{type(exc).__name__}: {exc}"
+                                    tqdm.write(f"Skipped timed-out media for message {message.id}")
+                                else:
+                                    if saved_path:
+                                        downloaded += 1
                             if saved_path:
-                                downloaded += 1
-                        if saved_path:
-                            saved = Path(saved_path)
-                            try:
-                                record["media_path"] = saved.relative_to(output).as_posix()
-                            except ValueError:
-                                record["media_path"] = str(saved)
+                                saved = Path(saved_path)
+                                try:
+                                    record["media_path"] = saved.relative_to(output).as_posix()
+                                except ValueError:
+                                    record["media_path"] = str(saved)
                     records.append(record)
                     progress.update(1)
-                    progress.set_postfix(downloaded=downloaded, reused=reused, refresh=False)
+                    progress.set_postfix(
+                        downloaded=downloaded,
+                        reused=reused,
+                        skipped=skipped,
+                        refresh=False,
+                    )
             finally:
                 progress.close()
             records.reverse()
@@ -256,7 +310,8 @@ async def run(args: argparse.Namespace) -> None:
             index.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
             print(
                 f"Saved {len(records)} messages under {output} "
-                f"({downloaded} media downloaded, {reused} already present)."
+                f"({downloaded} media downloaded, {reused} already present, "
+                f"{skipped} skipped)."
             )
             return
 
