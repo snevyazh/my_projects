@@ -6129,7 +6129,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         checkAppUpdate(force, progress, false);
     }
 
+    private static boolean isAppUpdaterDisabled() {
+        return true;
+    }
+
     public void checkAppUpdate(boolean force, Browser.Progress progress, boolean updateAlways) {
+        if (isAppUpdaterDisabled()) {
+            SharedConfig.setNewAppVersionAvailable(null);
+            if (progress != null) {
+                progress.end();
+            }
+            return;
+        }
 //        if (!ApplicationLoader.isStandaloneBuild() && !ApplicationLoader.isBetaBuild()) {
 //            return;
 //        }
@@ -7212,8 +7223,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         }
         if (UserConfig.getInstance(UserConfig.selectedAccount).unacceptedTermsOfService != null) {
             showTosActivity(UserConfig.selectedAccount, UserConfig.getInstance(UserConfig.selectedAccount).unacceptedTermsOfService);
-        } else if (SharedConfig.pendingAppUpdate != null && SharedConfig.pendingAppUpdate.can_not_skip) {
-            showUpdateActivity(UserConfig.selectedAccount, SharedConfig.pendingAppUpdate, true);
+        } else if (SharedConfig.pendingAppUpdate != null) {
+            SharedConfig.setNewAppVersionAvailable(null);
         }
         checkAppUpdate(false, null);
 

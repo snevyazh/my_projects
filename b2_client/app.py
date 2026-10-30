@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import os
 import shutil
 import subprocess
-import sys
-import time
+import uuid
 
 import streamlit as st
 
@@ -14,11 +12,17 @@ from b2_backend import (
     B2Backend,
     human_size,
 )
+from transfer_manager import (
+    ACTIVE,
+    TransferManager,
+    copy_move_operation,
+    download_operation,
+    upload_file_operation,
+    upload_folder_operation,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
-STATE_DIR = BASE_DIR / ".transfer_state"
-WORKER_FILE = BASE_DIR / "transfer_worker.py"
 
 st.set_page_config(
     page_title="B2 Client",
@@ -27,7 +31,7 @@ st.set_page_config(
 )
 
 st.title("Backblaze B2 Client")
-st.caption("Single-threaded API calls • transfer worker runs as a separate process • folder-picker callback build • recursive size build • stale-state fix v3")
+st.caption("Streamlit-controlled transfers • up to three simultaneous transfers")
 
 
 # ============================================================
@@ -200,566 +204,90 @@ def use_copy_destination(prefix: str):
 
 
 # ============================================================
-# Transfer state
-# ============================================================
-
-def ensure_state_dir():
-    STATE_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-
-def status_path(kind: str) -> Path:
-    return STATE_DIR / f"{kind}.json"
-
-
-def stop_path(kind: str) -> Path:
-    return STATE_DIR / f"{kind}.stop"
-
-
-def clear_transfer_files(kind: str):
-    for path in [
-        status_path(kind),
-        stop_path(kind),
-    ]:
-        if path.exists():
-            path.unlink()
-
-
-def read_status(kind: str) -> dict | None:
-    path = status_path(kind)
-
-    if not path.exists():
-        return None
-
-    try:
-        return json.loads(
-            path.read_text(
-                encoding="utf-8",
-            )
-        )
-
-    except Exception:
-        return None
-
-
-def write_status(
-    kind: str,
-    info: dict,
-):
-    path = status_path(kind)
-    path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    temp_path = path.with_suffix(
-        path.suffix + ".tmp"
-    )
-
-    temp_path.write_text(
-        json.dumps(
-            info,
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-    os.replace(
-        temp_path,
-        path,
-    )
-
-
-def process_is_running(
-    pid: int | None,
-) -> bool:
-    """
-    Check whether a worker PID is still alive.
-
-    On Windows, os.kill(pid, 0) is not a reliable existence check and can
-    raise SystemError. Use tasklist instead. On non-Windows systems, fall
-    back to os.kill(pid, 0).
-    """
-    if not pid:
-        return False
-
-    try:
-        pid = int(pid)
-    except (TypeError, ValueError):
-        return False
-
-    if os.name == "nt":
-        try:
-            creationflags = 0
-
-            if hasattr(
-                subprocess,
-                "CREATE_NO_WINDOW",
-            ):
-                creationflags = (
-                    subprocess.CREATE_NO_WINDOW
-                )
-
-            result = subprocess.run(
-                [
-                    "tasklist",
-                    "/FI",
-                    f"PID eq {pid}",
-                    "/FO",
-                    "CSV",
-                    "/NH",
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=creationflags,
-                timeout=10,
-            )
-
-            output = result.stdout.strip()
-
-            if not output:
-                return False
-
-            if (
-                "No tasks are running"
-                in output
-            ):
-                return False
-
-            # CSV output for a live process begins with its image name.
-            return str(pid) in output
-
-        except Exception:
-            # If Windows process inspection itself fails, do not crash the UI.
-            # Treat the state as stale rather than leaving the app unusable.
-            return False
-
-    try:
-        os.kill(
-            pid,
-            0,
-        )
-        return True
-
-    except ProcessLookupError:
-        return False
-
-    except PermissionError:
-        return True
-
-    except OSError:
-        return False
-
-
-def reconcile_status(
-    kind: str,
-) -> dict | None:
-    """
-    Prevent an old JSON status file from leaving the UI permanently stuck
-    in "running" after Streamlit or a worker was stopped.
-
-    Older builds did not store a worker PID, so any old "running" record
-    without a PID is automatically treated as interrupted.
-    """
-    info = read_status(kind)
-
-    if not info:
-        return None
-
-    status = info.get(
-        "status",
-        "unknown",
-    )
-
-    if status not in {
-        "starting",
-        "running",
-        "stopping",
-        "deleting",
-    }:
-        return info
-
-    pid = info.get("pid")
-
-    if not process_is_running(pid):
-        info["status"] = "interrupted"
-        info["error"] = (
-            "The previous transfer is no longer running. "
-            "Its saved progress record was stale."
-        )
-
-        write_status(
-            kind,
-            info,
-        )
-
-        stale_stop = stop_path(kind)
-
-        if stale_stop.exists():
-            try:
-                stale_stop.unlink()
-            except OSError:
-                pass
-
-    return info
-
-
-def reset_transfer_state(
-    kind: str,
-):
-    clear_transfer_files(kind)
-
-
-def start_worker(
-    *,
-    kind: str,
-    mode: str,
-    local_path: str,
-    remote_key: str = "",
-    remote_prefix: str = "",
-    skip_same: bool = False,
-    source_key: str = "",
-    destination_key: str = "",
-    source_is_folder: bool = False,
-    move: bool = False,
-    overwrite: bool = False,
-):
-    ensure_state_dir()
-    clear_transfer_files(kind)
-
-    command = [
-        sys.executable,
-        str(WORKER_FILE),
-        mode,
-        "--status-file",
-        str(status_path(kind)),
-        "--stop-file",
-        str(stop_path(kind)),
-        "--local-path",
-        local_path,
-    ]
-
-    if remote_key:
-        command.extend(
-            [
-                "--remote-key",
-                remote_key,
-            ]
-        )
-
-    if remote_prefix:
-        command.extend(
-            [
-                "--remote-prefix",
-                remote_prefix,
-            ]
-        )
-
-    if skip_same:
-        command.append(
-            "--skip-same"
-        )
-
-    if source_key:
-        command.extend(
-            [
-                "--source-key",
-                source_key,
-            ]
-        )
-
-    if destination_key:
-        command.extend(
-            [
-                "--destination-key",
-                destination_key,
-            ]
-        )
-
-    if source_is_folder:
-        command.append(
-            "--source-is-folder"
-        )
-
-    if move:
-        command.append(
-            "--move"
-        )
-
-    if overwrite:
-        command.append(
-            "--overwrite"
-        )
-
-    creationflags = 0
-
-    if hasattr(
-        subprocess,
-        "CREATE_NO_WINDOW",
-    ):
-        creationflags = (
-            subprocess.CREATE_NO_WINDOW
-        )
-
-    process = subprocess.Popen(
-        command,
-        cwd=str(BASE_DIR),
-        creationflags=creationflags,
-    )
-
-    # Close the brief gap between process creation and the worker's first
-    # status update so a rapid rerun cannot start a duplicate transfer.
-    initial_status = {
-        "status": "starting",
-        "started_at": time.time(),
-        "heartbeat": time.time(),
-        "pid": process.pid,
-        "total_bytes": 0,
-        "transferred_bytes": 0,
-        "total_files": 0,
-        "processed_files": 0,
-        "current_file": "",
-        "current_bytes": 0,
-        "current_size": 0,
-        "uploaded": 0,
-        "skipped": 0,
-        "copied": 0,
-        "deleted": 0,
-        "failed": 0,
-        "error": "",
-        "source_is_folder": source_is_folder,
-        "action": "move" if move else "copy",
-    }
-
-    if not status_path(kind).exists():
-        write_status(kind, initial_status)
-
-
-def request_stop(kind: str):
-    ensure_state_dir()
-
-    stop_path(kind).write_text(
-        "stop",
-        encoding="utf-8",
-    )
-
-
-def pct(
-    current: int,
-    total: int,
-) -> int:
-    if total <= 0:
-        return 0
-
-    return min(
-        100,
-        max(
-            0,
-            int(current * 100 / total),
-        ),
-    )
-
-
-def render_transfer_status(
-    kind: str,
-    label: str,
-    folder: bool = False,
-):
-    info = reconcile_status(kind)
-
-    if not info:
-        return
-
-    status = info.get(
-        "status",
-        "unknown",
-    )
-
-    overall = pct(
-        int(
-            info.get(
-                "transferred_bytes",
-                0,
-            )
-        ),
-        int(
-            info.get(
-                "total_bytes",
-                0,
-            )
-        ),
-    )
-
-    st.progress(
-        overall,
-        text=(
-            f"{label}: {overall}%"
-            if status == "running"
-            else f"{label}: {status}"
-        ),
-    )
-
-    if folder:
-        current = pct(
-            int(
-                info.get(
-                    "current_bytes",
-                    0,
-                )
-            ),
-            int(
-                info.get(
-                    "current_size",
-                    0,
-                )
-            ),
-        )
-
-        st.progress(
-            current,
-            text=f"Current file: {current}%",
-        )
-
-        if info.get("current_file"):
-            st.write(
-                "Current: "
-                f"`{info['current_file']}`"
-            )
-
-        if kind == "copy_move":
-            st.write(
-                f"Files processed: "
-                f"{info.get('processed_files', 0)} / "
-                f"{info.get('total_files', 0)}  |  "
-                f"Processed: "
-                f"{human_size(int(info.get('transferred_bytes', 0)))} / "
-                f"{human_size(int(info.get('total_bytes', 0)))}"
-            )
-        else:
-            st.write(
-                f"Files processed: "
-                f"{info.get('processed_files', 0)} / "
-                f"{info.get('total_files', 0)}  |  "
-                f"Uploaded: {info.get('uploaded', 0)}  |  "
-                f"Skipped: {info.get('skipped', 0)}  |  "
-                f"Failed: {info.get('failed', 0)}  |  "
-                f"Processed: "
-                f"{human_size(int(info.get('transferred_bytes', 0)))} / "
-                f"{human_size(int(info.get('total_bytes', 0)))}"
-            )
-
-    else:
-        st.write(
-            f"{human_size(int(info.get('transferred_bytes', 0)))} / "
-            f"{human_size(int(info.get('total_bytes', 0)))}"
-        )
-
-    if kind == "copy_move":
-        st.write(
-            f"Copied: {info.get('copied', 0)}  |  "
-            f"Deleted: {info.get('deleted', 0)}  |  "
-            f"Failed: {info.get('failed', 0)}"
-        )
-
-    if status in {"starting", "running"}:
-        if st.button(
-            f"⏹ Stop {label.lower()}",
-            key=f"stop_{kind}",
-        ):
-            request_stop(kind)
-            st.rerun()
-
-    elif status == "deleting":
-        st.info("Copy complete. Deleting source objects…")
-
-    elif status == "cancelled":
-        st.warning(
-            f"{label} stopped."
-        )
-
-        if st.button(
-            "Clear transfer status",
-            key=f"clear_{kind}_cancelled",
-        ):
-            reset_transfer_state(kind)
-            st.rerun()
-
-    elif status == "interrupted":
-        st.warning(
-            f"{label} was interrupted. "
-            "The old running state has been cleared."
-        )
-
-        if st.button(
-            "Clear transfer status",
-            key=f"clear_{kind}_interrupted",
-        ):
-            reset_transfer_state(kind)
-            st.rerun()
-
-    elif status == "complete":
-        st.success(
-            f"{label} complete."
-        )
-
-        if st.button(
-            "Clear transfer status",
-            key=f"clear_{kind}_complete",
-        ):
-            reset_transfer_state(kind)
-            st.rerun()
-
-    elif status == "completed_with_errors":
-        st.warning(
-            f"{label} finished with {info.get('failed', 0)} error(s)."
-        )
-
-        if info.get("error"):
-            st.code(info["error"])
-
-        if st.button(
-            "Clear transfer status",
-            key=f"clear_{kind}_completed_with_errors",
-        ):
-            reset_transfer_state(kind)
-            st.rerun()
-
-    elif status == "error":
-        st.error(
-            f"{label} failed."
-        )
-        st.code(
-            info.get(
-                "error",
-                "Unknown error",
-            )
-        )
-
-        if st.button(
-            "Clear transfer status",
-            key=f"clear_{kind}_error",
-        ):
-            reset_transfer_state(kind)
-            st.rerun()
-
-
-# ============================================================
 # App/session setup
 # ============================================================
 
-ensure_state_dir()
+@st.cache_resource
+def get_transfer_manager() -> TransferManager:
+    return TransferManager(limit=3, disconnect_timeout=5.0)
+
+
+manager = get_transfer_manager()
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = uuid.uuid4().hex
+
+session_id = st.session_state.session_id
+manager.heartbeat(session_id)
+# A full script run means the user performed an action. Active transfers stay;
+# prior results disappear. Fragment-only progress refreshes do not clear them.
+if st.session_state.pop("_system_transfer_rerun", False):
+    pass
+else:
+    manager.clear_terminal(session_id)
+
+
+def pct(current: int, total: int) -> int:
+    if total <= 0:
+        return 0
+    return min(100, max(0, int(current * 100 / total)))
+
+
+@st.fragment(run_every="1s")
+def transfer_panel():
+    manager.heartbeat(session_id)
+    active_now = manager.active_count()
+    active_before = st.session_state.get("_active_transfer_count", active_now)
+    st.session_state._active_transfer_count = active_now
+    if active_before >= 3 and active_now < 3:
+        # Re-enable the Start buttons without treating this automatic refresh
+        # as a user action that clears the completed result.
+        st.session_state._system_transfer_rerun = True
+        st.rerun(scope="app")
+    for info in manager.list(session_id):
+        status = info["status"]
+        total = int(info.get("total_bytes", 0))
+        done = int(info.get("transferred_bytes", 0))
+        percent = pct(done, total)
+        st.progress(percent, text=f"{info['label']}: {percent}% ({status})")
+        if info.get("current_file"):
+            st.caption(info["current_file"])
+        if info.get("total_files"):
+            st.caption(
+                f"Files: {info.get('processed_files', 0)} / {info['total_files']} • "
+                f"Uploaded: {info.get('uploaded', 0)} • Skipped: {info.get('skipped', 0)} • "
+                f"Failed: {info.get('failed', 0)}"
+            )
+        if status in ACTIVE:
+            if st.button("Stop", key=f"stop_{info['id']}"):
+                manager.stop(session_id, info["id"])
+                st.rerun()
+        elif status == "complete":
+            st.success("Complete")
+        elif status == "skipped":
+            st.info("Skipped because the destination has the same size.")
+        elif status == "completed_with_errors":
+            st.warning("Completed with errors")
+            if info.get("error"):
+                st.code(info["error"])
+        elif status == "error":
+            st.error("Transfer failed")
+            if info.get("error"):
+                st.code(info["error"])
+
+
+def user_action() -> None:
+    manager.clear_terminal(session_id)
+
+
+def can_start_transfer() -> bool:
+    return manager.active_count() < 3
 
 for key, default in {
     "prefix": "",
     "upload_local_path": "",
     "upload_folder_local_path": "",
     "download_local_path": "",
-    "verify_local_folder": "",
     "copy_browser_prefix": "",
 }.items():
     if key not in st.session_state:
@@ -798,9 +326,10 @@ tabs = st.tabs(
         "Upload folder",
         "Download",
         "Copy / move",
-        "Verify",
     ]
 )
+
+transfer_panel()
 
 
 # ============================================================
@@ -835,19 +364,23 @@ with tabs[0]:
 
             st.rerun()
 
-    try:
-        folders, objects = b2.list_folder(prefix)
-        stats = b2.get_prefix_stats(prefix)
+    browse_refresh = st.button("Refresh", key="browse_refresh")
+    if browse_refresh:
+        user_action()
+        try:
+            folders, objects = b2.list_folder(prefix)
+            stats = b2.get_prefix_stats(prefix)
+            st.session_state.browse_cache = (prefix, folders, objects, stats)
+        except Exception as error:
+            st.exception(error)
 
-    except Exception as error:
-        st.exception(error)
-        folders = []
-        objects = []
-        stats = {
-            "size": 0,
-            "objects": 0,
-            "child_folders": {},
-        }
+    cached = st.session_state.get("browse_cache")
+    if cached and cached[0] == prefix:
+        _, folders, objects, stats = cached
+    else:
+        folders, objects = [], []
+        stats = {"size": 0, "objects": 0, "child_folders": {}}
+        st.info("Press Refresh to load this folder.")
 
     metric1, metric2 = st.columns(2)
 
@@ -975,22 +508,13 @@ with tabs[1]:
         placeholder="TV_S/Poirot/S01/E01.mkv",
     )
 
-    current = reconcile_status(
-        "upload_file"
-    )
-
-    active = (
-        current
-        and current.get("status")
-        in {"starting", "running"}
-    )
-
     if st.button(
         "Upload",
         type="primary",
-        disabled=bool(active),
+        disabled=not can_start_transfer(),
         key="start_upload_file",
     ):
+        user_action()
         local_path = (
             clean_local_path(
                 local_path
@@ -1011,26 +535,14 @@ with tabs[1]:
             )
 
         else:
-            start_worker(
-                kind="upload_file",
-                mode="upload_file",
-                local_path=local_path,
-                remote_key=remote_key.strip("/"),
+            manager.start(
+                session_id,
+                "upload_file",
+                f"Upload {Path(local_path).name}",
+                upload_file_operation(manager, local_path, remote_key.strip("/")),
             )
 
             st.rerun()
-
-    @st.fragment(
-        run_every="500ms"
-    )
-    def upload_file_status():
-        render_transfer_status(
-            "upload_file",
-            "Upload",
-        )
-
-    upload_file_status()
-
 
 # ============================================================
 # Upload folder
@@ -1060,28 +572,15 @@ with tabs[2]:
         key="upload_folder_prefix",
     )
 
-    skip_same = st.checkbox(
-        "Skip existing objects with same size",
-        value=True,
-        key="skip_same_folder",
-    )
-
-    current = reconcile_status(
-        "upload_folder"
-    )
-
-    active = (
-        current
-        and current.get("status")
-        in {"starting", "running"}
-    )
+    st.caption("Existing same-size objects are skipped; different-size objects are overwritten.")
 
     if st.button(
         "Upload folder",
         type="primary",
-        disabled=bool(active),
+        disabled=not can_start_transfer(),
         key="start_upload_folder",
     ):
+        user_action()
         folder_path = (
             clean_local_path(
                 folder_path
@@ -1097,28 +596,14 @@ with tabs[2]:
             )
 
         else:
-            start_worker(
-                kind="upload_folder",
-                mode="upload_folder",
-                local_path=folder_path,
-                remote_prefix=remote_prefix.strip("/"),
-                skip_same=skip_same,
+            manager.start(
+                session_id,
+                "upload_folder",
+                f"Upload folder {Path(folder_path).name}",
+                upload_folder_operation(manager, folder_path, remote_prefix.strip("/")),
             )
 
             st.rerun()
-
-    @st.fragment(
-        run_every="500ms"
-    )
-    def upload_folder_status():
-        render_transfer_status(
-            "upload_folder",
-            "Folder upload",
-            folder=True,
-        )
-
-    upload_folder_status()
-
 
 # ============================================================
 # Download
@@ -1152,22 +637,13 @@ with tabs[3]:
         key="download_local_path",
     )
 
-    current = reconcile_status(
-        "download"
-    )
-
-    active = (
-        current
-        and current.get("status")
-        in {"starting", "running"}
-    )
-
     if st.button(
         "Download",
         type="primary",
-        disabled=bool(active),
+        disabled=not can_start_transfer(),
         key="start_download",
     ):
+        user_action()
         local_path = (
             clean_local_path(
                 local_path
@@ -1185,26 +661,14 @@ with tabs[3]:
             )
 
         else:
-            start_worker(
-                kind="download",
-                mode="download",
-                local_path=local_path,
-                remote_key=remote_key.strip("/"),
+            manager.start(
+                session_id,
+                "download",
+                f"Download {Path(remote_key).name}",
+                download_operation(manager, remote_key.strip("/"), local_path),
             )
 
             st.rerun()
-
-    @st.fragment(
-        run_every="500ms"
-    )
-    def download_status():
-        render_transfer_status(
-            "download",
-            "Download",
-        )
-
-    download_status()
-
 
 # ============================================================
 # Copy / move inside B2
@@ -1250,12 +714,24 @@ with tabs[4]:
             use_container_width=True,
         )
 
-        try:
-            browser_folders, browser_objects = b2.list_folder(browser_prefix)
-        except Exception as error:
-            st.exception(error)
-            browser_folders = []
-            browser_objects = []
+        if st.button("Refresh", key="copy_browser_refresh"):
+            user_action()
+            try:
+                browser_folders, browser_objects = b2.list_folder(browser_prefix)
+                st.session_state.copy_browser_cache = (
+                    browser_prefix,
+                    browser_folders,
+                    browser_objects,
+                )
+            except Exception as error:
+                st.exception(error)
+
+        copy_cache = st.session_state.get("copy_browser_cache")
+        if copy_cache and copy_cache[0] == browser_prefix:
+            _, browser_folders, browser_objects = copy_cache
+        else:
+            browser_folders, browser_objects = [], []
+            st.info("Press Refresh to load this folder.")
 
         if browser_folders:
             st.caption("Folders")
@@ -1369,19 +845,13 @@ with tabs[4]:
             key="copy_move_confirm",
         )
 
-    current = reconcile_status("copy_move")
-    active = (
-        current
-        and current.get("status")
-        in {"starting", "running", "deleting"}
-    )
-
     if st.button(
         action,
         type="primary",
-        disabled=bool(active) or not move_confirmed,
+        disabled=not can_start_transfer() or not move_confirmed,
         key="start_copy_move",
     ):
+        user_action()
         source_key = source_key.strip("/")
         destination_key = destination_key.strip("/")
         source_is_folder = source_type == "Folder"
@@ -1402,145 +872,17 @@ with tabs[4]:
             st.warning("Source and destination folders cannot contain one another.")
 
         else:
-            start_worker(
-                kind="copy_move",
-                mode="copy_move",
-                local_path="",
-                source_key=source_key,
-                destination_key=destination_key,
-                source_is_folder=source_is_folder,
-                move=action == "Move",
-                overwrite=overwrite,
+            manager.start(
+                session_id,
+                "copy_move",
+                f"{action} {source_key}",
+                copy_move_operation(
+                    manager,
+                    source_key,
+                    destination_key,
+                    source_is_folder,
+                    action == "Move",
+                    overwrite,
+                ),
             )
             st.rerun()
-
-    @st.fragment(run_every="500ms")
-    def copy_move_status():
-        info = read_status("copy_move")
-        render_transfer_status(
-            "copy_move",
-            "Move" if info and info.get("action") == "move" else "Copy",
-            folder=bool(info and info.get("source_is_folder")),
-        )
-
-    copy_move_status()
-
-
-# ============================================================
-# Verify
-# ============================================================
-
-with tabs[5]:
-    st.subheader(
-        "Verify local folder against B2"
-    )
-
-    if st.button(
-        "📂 Choose folder",
-        key="choose_verify_folder",
-    ):
-        selected = choose_folder()
-
-        if selected:
-            st.session_state["verify_local_folder"] = selected
-
-    local_folder = st.text_input(
-        "Local folder",
-        key="verify_local_folder",
-    )
-
-    remote_prefix = st.text_input(
-        "Remote prefix (optional)",
-        key="verify_remote_prefix",
-    )
-
-    if st.button(
-        "Verify",
-        type="primary",
-        key="verify_btn",
-    ):
-        local_folder = (
-            clean_local_path(
-                local_folder
-            )
-        )
-
-        if not Path(
-            local_folder
-        ).is_dir():
-            st.error(
-                "Folder does not exist: "
-                f"{local_folder}"
-            )
-
-        else:
-            try:
-                with st.spinner(
-                    "Comparing local files with B2..."
-                ):
-                    result = (
-                        b2.verify_folder_by_size(
-                            local_folder,
-                            remote_prefix,
-                        )
-                    )
-
-                st.write(
-                    f"Checked: "
-                    f"**{result['checked']}**"
-                )
-
-                st.write(
-                    f"Missing: "
-                    f"**{len(result['missing'])}**"
-                )
-
-                st.write(
-                    f"Size mismatches: "
-                    f"**{len(result['mismatched'])}**"
-                )
-
-                if (
-                    not result["missing"]
-                    and not result[
-                        "mismatched"
-                    ]
-                ):
-                    st.success(
-                        "All checked files match by size."
-                    )
-
-                if result["missing"]:
-                    st.dataframe(
-                        [
-                            {"missing": key}
-                            for key in result[
-                                "missing"
-                            ]
-                        ],
-                        use_container_width=True,
-                    )
-
-                if result[
-                    "mismatched"
-                ]:
-                    st.dataframe(
-                        [
-                            {
-                                "key": key,
-                                "local_size": local_size,
-                                "remote_size": remote_size,
-                            }
-                            for (
-                                key,
-                                local_size,
-                                remote_size,
-                            ) in result[
-                                "mismatched"
-                            ]
-                        ],
-                        use_container_width=True,
-                    )
-
-            except Exception as error:
-                st.exception(error)

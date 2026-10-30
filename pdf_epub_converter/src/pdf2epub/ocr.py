@@ -116,6 +116,46 @@ def _stage_ocr_input(input_path: Path, work_dir: Path) -> Path:
     return staged_input
 
 
+def _remove_permission_encryption(input_path: Path, work_dir: Path) -> tuple[Path, bool]:
+    """Write an unencrypted OCR copy when a PDF uses an empty user password."""
+    try:
+        import fitz
+    except ImportError:  # pragma: no cover - checked by the analysis stage
+        return input_path, False
+
+    try:
+        document = fitz.open(input_path)
+    except Exception:
+        # Let OCRmyPDF provide the diagnostic for malformed or unsupported input.
+        return input_path, False
+
+    try:
+        if document.needs_pass:
+            raise OCRProcessingError(
+                f"PDF requires a password before OCR can run: {input_path}"
+            )
+        encryption_type, _ = document.xref_get_key(-1, "Encrypt")
+        if encryption_type == "null":
+            return input_path, False
+
+        decrypted_path = work_dir / "ocr-decrypted-input.pdf"
+        document.save(decrypted_path, encryption=fitz.PDF_ENCRYPT_NONE)
+    except OCRProcessingError:
+        raise
+    except Exception as exc:
+        raise OCRProcessingError(
+            f"Could not remove PDF permission encryption for OCR: {input_path}: {exc}"
+        ) from exc
+    finally:
+        document.close()
+
+    if not decrypted_path.is_file() or not decrypted_path.stat().st_size:
+        raise OCRProcessingError(
+            f"Could not create an unencrypted temporary OCR copy of {input_path}"
+        )
+    return decrypted_path, True
+
+
 def _tesseract_failed_pages(detail: str) -> set[int]:
     return {
         int(match)
@@ -181,8 +221,14 @@ def ocr_pdf(
         if item.page_number in pages
     )
     staged_input = _stage_ocr_input(input_path, work_dir)
+    ocr_input, encryption_removed = _remove_permission_encryption(staged_input, work_dir)
+    warnings = (
+        ["PDF permission encryption was removed from a temporary OCR copy."]
+        if encryption_removed
+        else []
+    )
     output_path = work_dir / "ocr.pdf"
-    command = _ocr_command(staged_input, output_path, pages, languages, force_ocr)
+    command = _ocr_command(ocr_input, output_path, pages, languages, force_ocr)
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     if completed.returncode:
         detail = _failure_detail(completed)
@@ -190,7 +236,7 @@ def ocr_pdf(
             failed_details = [detail]
             output_path = work_dir / "ocr-single-job.pdf"
             command = _ocr_command(
-                staged_input, output_path, pages, languages, force_ocr, jobs=1
+                ocr_input, output_path, pages, languages, force_ocr, jobs=1
             )
             completed = subprocess.run(command, capture_output=True, text=True, check=False)
             if not completed.returncode:
@@ -198,7 +244,7 @@ def ocr_pdf(
                     output_path,
                     frozenset(pages),
                     True,
-                    ("OCRmyPDF recovered after retrying with one worker.",),
+                    tuple(warnings + ["OCRmyPDF recovered after retrying with one worker."]),
                 )
             detail = _failure_detail(completed)
             failed_details.append(detail)
@@ -207,7 +253,7 @@ def ocr_pdf(
             if failed_pages and remaining_pages:
                 output_path = work_dir / "ocr-skipped-failed-pages.pdf"
                 command = _ocr_command(
-                    staged_input,
+                    ocr_input,
                     output_path,
                     remaining_pages,
                     languages,
@@ -223,21 +269,24 @@ def ocr_pdf(
                         output_path,
                         frozenset(remaining_pages),
                         True,
-                        (
+                        tuple(warnings + [
                             f"Tesseract could not process OCR pages {skipped}; "
                             "they were left unchanged.",
-                        ),
+                        ]),
                     )
                 detail = _failure_detail(completed)
             elif failed_pages:
                 skipped = compress_page_ranges(sorted(failed_pages))
                 return OCRResult(
-                    staged_input,
+                    ocr_input,
                     frozenset(),
                     False,
-                    (
-                        f"Tesseract could not process OCR pages {skipped}; "
-                        "they were left unchanged.",
+                    tuple(
+                        warnings
+                        + [
+                            f"Tesseract could not process OCR pages {skipped}; "
+                            "they were left unchanged.",
+                        ]
                     ),
                 )
         if "generated pdf is invalid" not in detail.casefold():
@@ -251,7 +300,7 @@ def ocr_pdf(
             )
 
         repaired_input = work_dir / "repaired-input.pdf"
-        repair = _repair_pdf_with_ghostscript(ghostscript, staged_input, repaired_input)
+        repair = _repair_pdf_with_ghostscript(ghostscript, ocr_input, repaired_input)
         if repair.returncode or not repaired_input.is_file():
             repair_detail = (
                 repair.stderr.strip() or repair.stdout.strip() or "unknown Ghostscript error"
@@ -273,6 +322,9 @@ def ocr_pdf(
             output_path,
             frozenset(pages),
             True,
-            ("The source PDF contained malformed streams and was repaired before OCR.",),
+            tuple(
+                warnings
+                + ["The source PDF contained malformed streams and was repaired before OCR."]
+            ),
         )
-    return OCRResult(output_path, frozenset(pages), True)
+    return OCRResult(output_path, frozenset(pages), True, tuple(warnings))

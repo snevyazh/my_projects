@@ -4,8 +4,7 @@
 !.env.example
 .streamlit/secrets.toml
 
-# Application runtime state
-.transfer_state/
+# Application runtime logs
 *.log
 
 # Python bytecode and caches

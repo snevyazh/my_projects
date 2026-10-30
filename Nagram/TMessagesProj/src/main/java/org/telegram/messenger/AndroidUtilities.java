@@ -6852,7 +6852,8 @@ public class AndroidUtilities {
         }
         if (Build.VERSION.SDK_INT >= 29) {
             window.setStatusBarContrastEnforced(false);
-            window.setNavigationBarContrastEnforced(false);
+            // Keep three-button navigation visually separated from edge-to-edge app content.
+            window.setNavigationBarContrastEnforced(true);
         }
     }
 

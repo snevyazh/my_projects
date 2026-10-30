@@ -9,10 +9,12 @@
 - OCRs only scan-like pages with OCRmyPDF/Tesseract (`rus+eng+heb` by default);
 - retains text/image bounding boxes, font information, page number, and text source in a structured book model;
 - sorts normal single-column pages and warns about likely multi-column layouts;
-- removes statistically repeated margin text and geometric page numbers;
+- removes statistically repeated margin text, geometric page numbers, and high-confidence
+  OCR renderings of ornamental rules and flourishes;
 - rebuilds wrapped paragraphs and repairs conservative Latin/Cyrillic line-end hyphenation;
 - detects English, Russian, and Hebrew chapter markers plus strongly styled title-only headings;
-- extracts meaningful embedded illustrations while rejecting tiny/repeated images and full-page scan backgrounds;
+- extracts substantial embedded illustrations while rejecting ornaments, thin decorative strips,
+  borders, tiny/repeated images, and full-page scan backgrounds;
 - creates a standards-structured EPUB with XHTML chapters, CSS, navigation, metadata, images, and an optional cover;
 - processes directories independently, preserves relative directory structure, logs failures, and continues after a bad book.
 
@@ -132,7 +134,8 @@ Heuristic thresholds live in `ConversionConfig`. External OCR failures name the 
 
 ## Known v1 limits
 
-- Password input is intentionally unsupported; encrypted PDFs fail clearly.
+- PDFs with permission-only encryption are decrypted in a temporary working copy. Password
+  input is intentionally unsupported, so PDFs that require an opening password fail clearly.
 - DjVu input is rasterized directly to PDF before OCR, so an existing DjVu hidden-text layer is not reused in v1.
 - Embedded PDF images are preserved directly where possible. Illustrations baked into a full-page scan are not yet segmented from the scan background.
 - OCR confidence is not currently available from OCRmyPDF's PDF text layer, so low-confidence warnings cannot be emitted reliably.

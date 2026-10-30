@@ -81,31 +81,11 @@ public class NekoXConfig {
     private static Boolean hasDeveloper = null;
 
     public static int currentAppId() {
-        switch (customApi) {
-            case -1:
-            case 0:
-                return BuildConfig.APP_ID;
-            case 1:
-                return BuildVars.OFFICAL_APP_ID;
-            case 2:
-                return BuildVars.TGX_APP_ID;
-            default:
-                return customAppId;
-        }
+        return BuildConfig.APP_ID;
     }
     
     public static String currentAppHash() {
-        switch (customApi) {
-            case -1:
-            case 0:
-                return BuildConfig.APP_HASH;
-            case 1:
-                return BuildVars.OFFICAL_APP_HASH;
-            case 2:
-                return BuildVars.TGX_APP_HASH;
-            default:
-                return customAppHash;
-        }
+        return BuildConfig.APP_HASH;
     }
     
     public static void saveCustomApi() {

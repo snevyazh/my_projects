@@ -1,6 +1,8 @@
 from pathlib import Path
 from subprocess import CompletedProcess
 
+import pytest
+
 from pdf2epub.analyzer import PageAnalysis
 from pdf2epub.models import PageKind
 from pdf2epub.ocr import (
@@ -71,6 +73,61 @@ def test_ocr_forces_rasterization_for_unreliable_native_text(
     ocr_pdf(tmp_path / "input.pdf", [analysis], tmp_path, "rus")
 
     assert "--force-ocr" in commands[0]
+
+
+def test_ocr_removes_permission_encryption_from_temporary_copy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    input_path = tmp_path / "encrypted.pdf"
+    document = fitz.open()
+    document.new_page().insert_text((72, 72), "scanned page")
+    document.save(
+        input_path,
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        owner_pw="owner-password",
+        user_pw="",
+    )
+    document.close()
+    analysis = PageAnalysis(1, 600, 800, 0, 0, 1, 1.0, 0.0, PageKind.SCANNED)
+    commands: list[list[str]] = []
+    monkeypatch.setattr("pdf2epub.ocr.check_ocr_dependencies", lambda languages: None)
+
+    def fake_run(command: list[str], **kwargs: object) -> CompletedProcess[str]:
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"ocr")
+        return CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("pdf2epub.ocr.subprocess.run", fake_run)
+
+    result = ocr_pdf(input_path, [analysis], tmp_path, "rus")
+
+    decrypted_input = Path(commands[0][-2])
+    assert decrypted_input.name == "ocr-decrypted-input.pdf"
+    with fitz.open(decrypted_input) as decrypted:
+        assert decrypted.xref_get_key(-1, "Encrypt")[0] == "null"
+    assert result.warnings == (
+        "PDF permission encryption was removed from a temporary OCR copy.",
+    )
+
+
+def test_ocr_rejects_pdf_that_requires_opening_password(tmp_path: Path, monkeypatch) -> None:
+    fitz = pytest.importorskip("fitz")
+    input_path = tmp_path / "password-protected.pdf"
+    document = fitz.open()
+    document.new_page()
+    document.save(
+        input_path,
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        owner_pw="owner-password",
+        user_pw="secret",
+    )
+    document.close()
+    analysis = PageAnalysis(1, 600, 800, 0, 0, 1, 1.0, 0.0, PageKind.SCANNED)
+    monkeypatch.setattr("pdf2epub.ocr.check_ocr_dependencies", lambda languages: None)
+
+    with pytest.raises(OCRProcessingError, match="requires a password"):
+        ocr_pdf(input_path, [analysis], tmp_path, "rus")
 
 
 def test_ocr_retries_ghostscript_failure_with_one_worker(tmp_path: Path, monkeypatch) -> None:

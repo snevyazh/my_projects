@@ -63,6 +63,17 @@ alias = alias ?: System.getenv("ALIAS_NAME")
 pwd = pwd ?: System.getenv("ALIAS_PASS")
 keystoreFile = keystoreFile ?: System.getenv("KEYSTORE_FILE")
 
+def privateSigningDir = rootProject.file("GOOGLE_VERY_SECRET_PASSWORD")
+def privateKeystoreFile = new File(privateSigningDir, "clean-nagram.keystore")
+def privatePasswordFile = new File(privateSigningDir, "clean-nagram.password")
+if (keystoreFile == null && privateKeystoreFile.isFile() && privatePasswordFile.isFile()) {
+    def privatePassword = privatePasswordFile.getText("UTF-8").trim()
+    keystoreFile = privateKeystoreFile.absolutePath
+    keystorePwd = keystorePwd ?: privatePassword
+    alias = alias ?: "clean-nagram"
+    pwd = pwd ?: privatePassword
+}
+
 def targetTask = ""
 if (!gradle.startParameter.taskNames.isEmpty()) {
     if (gradle.startParameter.taskNames.size == 1) {
